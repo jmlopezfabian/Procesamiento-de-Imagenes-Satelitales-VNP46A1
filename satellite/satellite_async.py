@@ -24,7 +24,7 @@ class SatelliteImagesAsync:
         if not h5_url:
             return None
 
-        save_path = f"{date_obj}_{self.municipio}_{cuadrante}.h5"
+        save_path = f"temp/{date_obj}_{self.municipio}_{cuadrante}.h5"
         downloaded_path = await download_file(session, h5_url, save_path)
 
         if not downloaded_path:
