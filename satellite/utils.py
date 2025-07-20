@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from .models import CoordenadasPixeles
+from models import CoordenadasPixeles
 
 def normalize_municipio(municipio: str) -> str:
     return municipio.lower().replace("á", "a").replace("é", "e")\

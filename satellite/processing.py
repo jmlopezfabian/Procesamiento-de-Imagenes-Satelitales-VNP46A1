@@ -1,8 +1,8 @@
 import h5py
 import numpy as np
 import os
-from .config import IMAGE_PATH
-from .models import MedicionResultado
+from config import IMAGE_PATH
+from models import MedicionResultado
 
 def process_image(downloaded_path, coordendas_pixeles, date_obj, municipio):
     if not os.path.exists(downloaded_path):

@@ -2,7 +2,7 @@ import os
 import aiohttp
 import asyncio
 from bs4 import BeautifulSoup
-from .config import BASE_URL, HEADERS
+from config import BASE_URL, HEADERS
 
 async def find_file(session, year, day, cuadrante):
     url = BASE_URL.format(year=year, day=day)

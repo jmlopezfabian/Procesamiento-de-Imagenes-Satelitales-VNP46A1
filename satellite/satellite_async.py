@@ -1,10 +1,10 @@
 import asyncio
 import pandas as pd
-from .config import PIXELES_MUNICIPIOS
-from .utils import normalize_municipio, parse_date, load_coord_data
-from .downloader import find_file, download_file
-from .processing import process_image
-from .models import MedicionResultado
+from config import PIXELES_MUNICIPIOS
+from utils import normalize_municipio, parse_date, load_coord_data
+from downloader import find_file, download_file
+from processing import process_image
+from models import MedicionResultado
 
 class SatelliteImagesAsync:
     """
@@ -24,7 +24,7 @@ class SatelliteImagesAsync:
         if not h5_url:
             return None
 
-        save_path = f"temp/{date_obj}_{self.municipio}_{cuadrante}.h5"
+        save_path = f"../temp/{date_obj}_{self.municipio}_{cuadrante}.h5"
         downloaded_path = await download_file(session, h5_url, save_path)
 
         if not downloaded_path:
