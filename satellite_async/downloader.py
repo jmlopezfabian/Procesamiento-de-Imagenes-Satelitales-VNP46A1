@@ -20,7 +20,7 @@ async def find_file(session, year, day, cuadrante):
 
 async def download_file(session, url, path):
     try:
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         async with session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=120)) as resp:
             if resp.status == 200:
                 with open(path, "wb") as f:
