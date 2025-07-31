@@ -8,7 +8,10 @@ def normalize_municipio(municipio: str) -> str:
 
 def parse_date(date_str: str):
     date = datetime.strptime(date_str, "%d-%m-%y")
-    return date.year, date.timetuple().tm_yday, date.date()
+    day_of_year = date.timetuple().tm_yday
+    # Formatear el día del año como string de 3 dígitos
+    day_str = f"{day_of_year:03d}"
+    return date.year, day_str, date.date()
 
 def load_coord_data(municipio: str, path: str) -> CoordenadasPixeles:
     with open(path, "r") as f:
