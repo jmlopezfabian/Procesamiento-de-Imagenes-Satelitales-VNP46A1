@@ -24,26 +24,60 @@ def cleanup_temp_files():
             except Exception as e:
                 print(f"Error eliminando archivo residual {file_path}: {e}")
 
-async def process_chunks(satellite_instance, fechas, chunks, session):
-    """Procesa las fechas en chunks de forma asíncrona"""
+def save_progress(df, municipio, chunk_number=None):
+    """Guarda el progreso actual en un CSV"""
+    try:
+        # Crear directorio si no existe
+        os.makedirs("../data", exist_ok=True)
+        
+        # Nombre del archivo con información del chunk
+        if chunk_number is not None:
+            filename = f"../data/{municipio}_progress_chunk_{chunk_number}.csv"
+        else:
+            filename = f"../data/{municipio}_progress.csv"
+        
+        # Guardar CSV
+        df.to_csv(filename, index=False)
+        print(f"✅ Progreso guardado: {filename} ({len(df)} registros)")
+        return filename
+    except Exception as e:
+        print(f"❌ Error guardando progreso: {e}")
+        return None
+
+async def process_chunks(satellite_instance, fechas, chunks, session, municipio):
+    """Procesa las fechas en chunks de forma asíncrona con guardado progresivo"""
     results = []
     fechas_chunks = chunk_list(fechas, chunks)
     
     for i, chunk_fechas in enumerate(fechas_chunks):
         print(f"Procesando chunk {i+1}/{len(fechas_chunks)} con {len(chunk_fechas)} fechas")
         
-        # Procesar el chunk actual de forma asíncrona
-        tasks = [satellite_instance.get_measures(session, f) for f in chunk_fechas]
-        chunk_results = []
-        
-        for result in asyncio.as_completed(tasks):
-            datos = await result
-            if datos:
-                chunk_results.append(datos.dict())
-        
-        # Agregar resultados del chunk actual
-        results.extend(chunk_results)
-        print(f"Chunk {i+1} completado. Resultados obtenidos: {len(chunk_results)}")
+        try:
+            # Procesar el chunk actual de forma asíncrona
+            tasks = [satellite_instance.get_measures(session, f) for f in chunk_fechas]
+            chunk_results = []
+            
+            for result in asyncio.as_completed(tasks):
+                datos = await result
+                if datos:
+                    chunk_results.append(datos.dict())
+            
+            # Agregar resultados del chunk actual
+            results.extend(chunk_results)
+            print(f"Chunk {i+1} completado. Resultados obtenidos: {len(chunk_results)}")
+            
+            # Guardar progreso después de cada chunk
+            if chunk_results:
+                temp_df = pd.DataFrame(results)
+                save_progress(temp_df, municipio, i+1)
+            
+        except Exception as e:
+            print(f"❌ Error procesando chunk {i+1}: {e}")
+            # Guardar progreso hasta el momento en caso de error
+            if results:
+                temp_df = pd.DataFrame(results)
+                save_progress(temp_df, municipio, f"error_chunk_{i+1}")
+            raise e
     
     return results
 
@@ -74,7 +108,7 @@ class SatelliteImagesAsync:
         datos = process_image(downloaded_path, coordendas_pixeles, date_obj, self.municipio)
         return datos
 
-    async def run(self, fechas, chunks=None):
+    async def run(self, fechas, chunks=None, save_progress=True):
         results = []
         import aiohttp
         
@@ -88,8 +122,15 @@ class SatelliteImagesAsync:
                         if datos:
                             results.append(datos.dict())
                 else:
-                    # Procesamiento por chunks usando la función separada
-                    results = await process_chunks(self, fechas, chunks, session)
+                    # Procesamiento por chunks usando la función separada con guardado progresivo
+                    results = await process_chunks(self, fechas, chunks, session, self.municipio)
+        except Exception as e:
+            print(f"❌ Error durante el procesamiento: {e}")
+            # Guardar progreso hasta el momento en caso de error
+            if results and save_progress:
+                temp_df = pd.DataFrame(results)
+                save_progress(temp_df, self.municipio, "error_final")
+            raise e
         finally:
             # Limpiar archivos residuales al final
             cleanup_temp_files()
