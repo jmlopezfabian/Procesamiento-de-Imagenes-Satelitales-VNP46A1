@@ -33,7 +33,8 @@ class MultiMunicipioProcessor:
                 cuadrantes[cuadrante] = []
             cuadrantes[cuadrante].append({
                 'nombre': municipio,
-                'coordenadas_pixeles': data['coordenadas_pixeles']
+                'coordenadas_pixeles': data['coordenadas_pixeles'],
+                'cuadrante': cuadrante  # Incluir el cuadrante en cada elemento
             })
         return cuadrantes
     
