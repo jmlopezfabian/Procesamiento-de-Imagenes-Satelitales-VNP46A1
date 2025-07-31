@@ -6,6 +6,33 @@ from downloader import find_file, download_file
 from processing import process_image
 from models import MedicionResultado
 
+def chunk_list(lst, chunk_size):
+    """Divide una lista en chunks del tamaño especificado"""
+    return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
+
+async def process_chunks(satellite_instance, fechas, chunks, session):
+    """Procesa las fechas en chunks de forma asíncrona"""
+    results = []
+    fechas_chunks = chunk_list(fechas, chunks)
+    
+    for i, chunk_fechas in enumerate(fechas_chunks):
+        print(f"Procesando chunk {i+1}/{len(fechas_chunks)} con {len(chunk_fechas)} fechas")
+        
+        # Procesar el chunk actual de forma asíncrona
+        tasks = [satellite_instance.get_measures(session, f) for f in chunk_fechas]
+        chunk_results = []
+        
+        for result in asyncio.as_completed(tasks):
+            datos = await result
+            if datos:
+                chunk_results.append(datos.dict())
+        
+        # Agregar resultados del chunk actual
+        results.extend(chunk_results)
+        print(f"Chunk {i+1} completado. Resultados obtenidos: {len(chunk_results)}")
+    
+    return results
+
 class SatelliteImagesAsync:
     """
     Class for get the measures of the satellite images
@@ -33,13 +60,22 @@ class SatelliteImagesAsync:
         datos = process_image(downloaded_path, coordendas_pixeles, date_obj, self.municipio)
         return datos
 
-    async def run(self, fechas):
+    async def run(self, fechas, chunks=None):
         results = []
         import aiohttp
+        
         async with aiohttp.ClientSession() as session:
-            tasks = [self.get_measures(session, f) for f in fechas]
-            for result in asyncio.as_completed(tasks):
-                datos = await result
-                if datos:
-                    results.append(datos.dict())
-        return pd.DataFrame(results) 
+            if chunks is None:
+                # Procesamiento original: todas las fechas de forma asíncrona
+                tasks = [self.get_measures(session, f) for f in fechas]
+                for result in asyncio.as_completed(tasks):
+                    datos = await result
+                    if datos:
+                        results.append(datos.dict())
+            else:
+                # Procesamiento por chunks usando la función separada
+                results = await process_chunks(self, fechas, chunks, session)
+        
+        results = pd.DataFrame(results)
+        print(results)
+        return results
