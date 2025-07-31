@@ -1,5 +1,7 @@
 import asyncio
 import pandas as pd
+import os
+import glob
 from config import PIXELES_MUNICIPIOS
 from utils import normalize_municipio, parse_date, load_coord_data
 from downloader import find_file, download_file
@@ -9,6 +11,18 @@ from models import MedicionResultado
 def chunk_list(lst, chunk_size):
     """Divide una lista en chunks del tamaño especificado"""
     return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
+
+def cleanup_temp_files():
+    """Limpia archivos .h5 residuales en el directorio temp"""
+    temp_dir = "../temp"
+    if os.path.exists(temp_dir):
+        h5_files = glob.glob(os.path.join(temp_dir, "*.h5"))
+        for file_path in h5_files:
+            try:
+                os.remove(file_path)
+                print(f"Archivo residual eliminado: {file_path}")
+            except Exception as e:
+                print(f"Error eliminando archivo residual {file_path}: {e}")
 
 async def process_chunks(satellite_instance, fechas, chunks, session):
     """Procesa las fechas en chunks de forma asíncrona"""
@@ -64,18 +78,20 @@ class SatelliteImagesAsync:
         results = []
         import aiohttp
         
-        async with aiohttp.ClientSession() as session:
-            if chunks is None:
-                # Procesamiento original: todas las fechas de forma asíncrona
-                tasks = [self.get_measures(session, f) for f in fechas]
-                for result in asyncio.as_completed(tasks):
-                    datos = await result
-                    if datos:
-                        results.append(datos.dict())
-            else:
-                # Procesamiento por chunks usando la función separada
-                results = await process_chunks(self, fechas, chunks, session)
+        try:
+            async with aiohttp.ClientSession() as session:
+                if chunks is None:
+                    # Procesamiento original: todas las fechas de forma asíncrona
+                    tasks = [self.get_measures(session, f) for f in fechas]
+                    for result in asyncio.as_completed(tasks):
+                        datos = await result
+                        if datos:
+                            results.append(datos.dict())
+                else:
+                    # Procesamiento por chunks usando la función separada
+                    results = await process_chunks(self, fechas, chunks, session)
+        finally:
+            # Limpiar archivos residuales al final
+            cleanup_temp_files()
         
-        results = pd.DataFrame(results)
-        print(results)
-        return results
+        return pd.DataFrame(results)
