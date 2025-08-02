@@ -1,7 +1,7 @@
 from processor import SatelliteProcessor
 
 if __name__ == "__main__":
-    processor = SatelliteProcessor("Iztapalapa")
+    processor = SatelliteProcessor("Coyoacán")
     
     # Lista de fechas a procesar
     fechas = ["01-01-24", "02-01-24", "03-01-24"]

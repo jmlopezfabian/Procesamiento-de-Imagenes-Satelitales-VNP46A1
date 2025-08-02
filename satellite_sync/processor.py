@@ -1,6 +1,8 @@
 import h5py
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')  # Configurar backend no interactivo
 import matplotlib.pyplot as plt
 import os
 from typing import Optional, Tuple, List
@@ -17,6 +19,27 @@ class SatelliteProcessor:
     
     def __init__(self, municipio: str):
         self.municipio = municipio
+    
+    def _save_plot(self, fig, date_obj: str, quadrant: str, plot_type: str = "analysis"):
+        """
+        Guarda una figura de matplotlib en lugar de mostrarla.
+        
+        Args:
+            fig: Figura de matplotlib
+            date_obj: Fecha del análisis
+            quadrant: Cuadrante de la imagen
+            plot_type: Tipo de gráfica
+        """
+        try:
+            # Crear directorio temp si no existe
+            os.makedirs("../temp", exist_ok=True)
+            filename = f"../temp/{date_obj}_{self.municipio}_{quadrant}_{plot_type}.png"
+            fig.savefig(filename, dpi=300, bbox_inches='tight')
+            print(f"Gráfica guardada como: {filename}")
+        except Exception as e:
+            print(f"Error al guardar la gráfica: {e}")
+        finally:
+            plt.close(fig)
     
     def get_measures(self, date_str: str, quadrant: str, show_plots: bool = True) -> Optional[dict]:
         """
@@ -147,7 +170,8 @@ class SatelliteProcessor:
                     Percentil_75_de_radianza=float(np.percentile(pixeles_imagen, 75)),
                 )
                 if show_plots:
-                    plt.show()
+                    # Guardar la figura usando la función auxiliar
+                    self._save_plot(plt.gcf(), date_obj, quadrant, "analysis")
                 os.remove(h5_save_path)
                 return medicion.dict()
                 
