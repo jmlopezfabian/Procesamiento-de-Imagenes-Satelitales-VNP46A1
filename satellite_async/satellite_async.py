@@ -83,30 +83,108 @@ async def process_chunks(satellite_instance, fechas, chunks, session, municipio)
 
 class SatelliteImagesAsync:
     """
-    Class for get the measures of the satellite images
+    Class for get the measures of the satellite images for multiple municipalities
     """
     
-    def __init__(self, municipio):
-        self.municipio = normalize_municipio(municipio)
-        self.coord_data = load_coord_data(self.municipio, PIXELES_MUNICIPIOS)
+    def __init__(self, municipios):
+        """
+        Inicializa con una lista de municipios
+        
+        Args:
+            municipios: Lista de nombres de municipios o string único
+        """
+        if isinstance(municipios, str):
+            municipios = [municipios]
+        
+        self.municipios = [normalize_municipio(m) for m in municipios]
+        self.coord_data_dict = {}
+        self.cache_h5_files = {}  # Cache para archivos H5 ya descargados
+        
+        # Cargar datos de coordenadas para todos los municipios
+        for municipio in self.municipios:
+            self.coord_data_dict[municipio] = load_coord_data(municipio, PIXELES_MUNICIPIOS)
+        
+        print(f"✅ Inicializado con {len(self.municipios)} municipios: {', '.join(self.municipios)}")
 
-    async def get_measures(self, session, date_str):
-        cuadrante = self.coord_data.cuadrante
-        coordendas_pixeles = self.coord_data.coordenadas_pixeles
-        year, day, date_obj = parse_date(date_str)
+    async def _download_and_cache_h5(self, session, year, day, cuadrante, date_obj):
+        """Descarga un archivo H5 y lo cachea para reutilización"""
+        cache_key = f"{year}_{day}_{cuadrante}"
+        
+        if cache_key in self.cache_h5_files:
+            print(f"✅ Usando archivo H5 cacheado: {cache_key}")
+            return self.cache_h5_files[cache_key]
+        
+        # Buscar y descargar el archivo
+        print(f"🔍 Buscando archivo H5 para: {year}-{day} ({cuadrante})")
         h5_url = await find_file(session, year, day, cuadrante)
-
         if not h5_url:
+            print(f"❌ No se encontró archivo H5 para: {year}-{day} ({cuadrante})")
             return None
-
-        save_path = f"../temp/{date_obj}_{self.municipio}_{cuadrante}.h5"
+            
+        save_path = f"../temp/{date_obj}_{cuadrante}.h5"
+        print(f"📥 Descargando: {h5_url} -> {save_path}")
         downloaded_path = await download_file(session, h5_url, save_path)
+        
+        if downloaded_path:
+            self.cache_h5_files[cache_key] = downloaded_path
+            print(f"✅ Archivo H5 descargado y cacheado: {cache_key}")
+            return downloaded_path
+        else:
+            print(f"❌ Error descargando archivo H5: {h5_url}")
+        
+        return None
 
-        if not downloaded_path:
-            return None
-
-        datos = process_image(downloaded_path, coordendas_pixeles, date_obj, self.municipio)
-        return datos
+    async def get_measures_for_date(self, session, date_str):
+        """Obtiene medidas para todos los municipios en una fecha específica"""
+        year, day, date_obj = parse_date(date_str)
+        results = []
+        
+        # Agrupar municipios por cuadrante para optimizar descargas
+        municipios_por_cuadrante = {}
+        for municipio in self.municipios:
+            coord_data = self.coord_data_dict[municipio]
+            cuadrante = coord_data.cuadrante
+            if cuadrante not in municipios_por_cuadrante:
+                municipios_por_cuadrante[cuadrante] = []
+            municipios_por_cuadrante[cuadrante].append({
+                'nombre': municipio,
+                'coordenadas_pixeles': coord_data.coordenadas_pixeles
+            })
+        
+        # Procesar cada cuadrante
+        for cuadrante, municipios_in_cuadrante in municipios_por_cuadrante.items():
+            # Descargar archivo H5 una sola vez para todos los municipios del cuadrante
+            h5_path = await self._download_and_cache_h5(session, year, day, cuadrante, date_obj)
+            if not h5_path:
+                continue
+            
+            # Procesar cada municipio con el mismo archivo H5
+            for municipio_data in municipios_in_cuadrante:
+                try:
+                    datos = process_image(
+                        h5_path, 
+                        municipio_data['coordenadas_pixeles'], 
+                        date_obj, 
+                        municipio_data['nombre'],
+                        delete_file=False  # No eliminar el archivo hasta procesar todos los municipios
+                    )
+                    if datos:
+                        results.append(datos.dict())
+                        print(f"✅ Procesado: {municipio_data['nombre']} - {date_obj}")
+                    else:
+                        print(f"⚠️ Sin datos para: {municipio_data['nombre']} - {date_obj}")
+                except Exception as e:
+                    print(f"❌ Error procesando {municipio_data['nombre']} para {date_obj}: {e}")
+            
+            # Eliminar el archivo H5 después de procesar todos los municipios del cuadrante
+            try:
+                if os.path.exists(h5_path):
+                    os.remove(h5_path)
+                    print(f"Archivo eliminado después de procesar todos los municipios: {h5_path}")
+            except Exception as e:
+                print(f"Error eliminando archivo {h5_path}: {e}")
+        
+        return results
 
     async def run(self, fechas, chunks=None, save_progress=True):
         results = []
@@ -116,20 +194,50 @@ class SatelliteImagesAsync:
             async with aiohttp.ClientSession() as session:
                 if chunks is None:
                     # Procesamiento original: todas las fechas de forma asíncrona
-                    tasks = [self.get_measures(session, f) for f in fechas]
+                    tasks = [self.get_measures_for_date(session, f) for f in fechas]
                     for result in asyncio.as_completed(tasks):
-                        datos = await result
-                        if datos:
-                            results.append(datos.dict())
+                        datos_list = await result
+                        if datos_list:
+                            results.extend(datos_list)
                 else:
-                    # Procesamiento por chunks usando la función separada con guardado progresivo
-                    results = await process_chunks(self, fechas, chunks, session, self.municipio)
+                    # Procesamiento por chunks
+                    fechas_chunks = chunk_list(fechas, chunks)
+                    
+                    for i, chunk_fechas in enumerate(fechas_chunks):
+                        print(f"Procesando chunk {i+1}/{len(fechas_chunks)} con {len(chunk_fechas)} fechas")
+                        
+                        try:
+                            # Procesar el chunk actual de forma asíncrona
+                            tasks = [self.get_measures_for_date(session, f) for f in chunk_fechas]
+                            chunk_results = []
+                            
+                            for result in asyncio.as_completed(tasks):
+                                datos_list = await result
+                                if datos_list:
+                                    chunk_results.extend(datos_list)
+                            
+                            # Agregar resultados del chunk actual
+                            results.extend(chunk_results)
+                            print(f"Chunk {i+1} completado. Resultados obtenidos: {len(chunk_results)}")
+                            
+                            # Guardar progreso después de cada chunk
+                            if chunk_results and save_progress:
+                                temp_df = pd.DataFrame(results)
+                                save_progress(temp_df, f"multi_municipio_chunk_{i+1}")
+                            
+                        except Exception as e:
+                            print(f"❌ Error procesando chunk {i+1}: {e}")
+                            # Guardar progreso hasta el momento en caso de error
+                            if results and save_progress:
+                                temp_df = pd.DataFrame(results)
+                                save_progress(temp_df, f"error_chunk_{i+1}")
+                            raise e
         except Exception as e:
             print(f"❌ Error durante el procesamiento: {e}")
             # Guardar progreso hasta el momento en caso de error
             if results and save_progress:
                 temp_df = pd.DataFrame(results)
-                save_progress(temp_df, self.municipio, "error_final")
+                save_progress(temp_df, "error_final")
             raise e
         finally:
             # Limpiar archivos residuales al final

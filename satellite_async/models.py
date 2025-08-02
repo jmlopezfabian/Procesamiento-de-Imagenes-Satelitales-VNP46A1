@@ -8,6 +8,7 @@ class CoordenadasPixeles(BaseModel):
 
 class MedicionResultado(BaseModel):
     Fecha: date = Field(..., description="Date of the measurement")
+    Municipio: str = Field(..., description="Name of the municipality")
     Cantidad_de_pixeles: int = Field(..., description="Number of pixels")
     Suma_de_radianza: float = Field(..., description="Sum of the radiance")
     Media_de_radianza: float = Field(..., description="Mean of the radiance")
