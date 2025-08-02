@@ -186,7 +186,7 @@ class SatelliteImagesAsync:
         
         return results
 
-    async def run(self, fechas, chunks=None, save_progress=True):
+    async def run(self, fechas, chunks=None, save_progress_enabled=True):
         results = []
         import aiohttp
         
@@ -221,21 +221,21 @@ class SatelliteImagesAsync:
                             print(f"Chunk {i+1} completado. Resultados obtenidos: {len(chunk_results)}")
                             
                             # Guardar progreso después de cada chunk
-                            if chunk_results and save_progress:
+                            if chunk_results and save_progress_enabled:
                                 temp_df = pd.DataFrame(results)
                                 save_progress(temp_df, "multi_municipio", i+1)
                             
                         except Exception as e:
                             print(f"❌ Error procesando chunk {i+1}: {e}")
                             # Guardar progreso hasta el momento en caso de error
-                            if results and save_progress:
+                            if results and save_progress_enabled:
                                 temp_df = pd.DataFrame(results)
                                 save_progress(temp_df, "error_chunk", i+1)
                             raise e
         except Exception as e:
             print(f"❌ Error durante el procesamiento: {e}")
             # Guardar progreso hasta el momento en caso de error
-            if results and save_progress:
+            if results and save_progress_enabled:
                 temp_df = pd.DataFrame(results)
                 save_progress(temp_df, "error_final", None)
             raise e
