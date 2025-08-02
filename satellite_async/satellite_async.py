@@ -223,21 +223,21 @@ class SatelliteImagesAsync:
                             # Guardar progreso después de cada chunk
                             if chunk_results and save_progress:
                                 temp_df = pd.DataFrame(results)
-                                save_progress(temp_df, f"multi_municipio_chunk_{i+1}")
+                                save_progress(temp_df, "multi_municipio", i+1)
                             
                         except Exception as e:
                             print(f"❌ Error procesando chunk {i+1}: {e}")
                             # Guardar progreso hasta el momento en caso de error
                             if results and save_progress:
                                 temp_df = pd.DataFrame(results)
-                                save_progress(temp_df, f"error_chunk_{i+1}")
+                                save_progress(temp_df, "error_chunk", i+1)
                             raise e
         except Exception as e:
             print(f"❌ Error durante el procesamiento: {e}")
             # Guardar progreso hasta el momento en caso de error
             if results and save_progress:
                 temp_df = pd.DataFrame(results)
-                save_progress(temp_df, "error_final")
+                save_progress(temp_df, "error_final", None)
             raise e
         finally:
             # Limpiar archivos residuales al final
