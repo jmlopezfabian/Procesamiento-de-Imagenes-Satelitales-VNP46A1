@@ -170,7 +170,8 @@ class SatelliteProcessor:
                     Percentil_75_de_radianza=float(np.percentile(pixeles_imagen, 75)),
                 )
                 if show_plots:
-                    # Guardar la figura usando la función auxiliar
+                    # Guardar la figura usando la función 
+                    plt.show()
                     self._save_plot(plt.gcf(), date_obj, quadrant, "analysis")
                 os.remove(h5_save_path)
                 return medicion.dict()
