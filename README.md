@@ -62,7 +62,7 @@ pip install -r requirements.txt
 │   └── config.py           # Configuración
 ├── Data/                   # Datos de municipios
 │   ├── municipios_coordenadas_pixeles.json
-│   └── limite-de-las-alcaldas.json
+│   └── limite-de-las-alcaldias.json
 ├── temp/                   # Archivos temporales
 ├── requirements.txt        # Dependencias de Python
 └── README.md              # Este archivo
