@@ -2,7 +2,7 @@
 
 Este proyecto proporciona herramientas para el procesamiento y análisis de imágenes satelitales VNP46A1 de la NASA, específicamente diseñado para extraer mediciones de radianza por municipio en la Ciudad de México.
 
-## 📋 Descripción
+## Descripción
 
 El proyecto incluye dos implementaciones principales:
 
@@ -11,14 +11,14 @@ El proyecto incluye dos implementaciones principales:
 
 ### Características principales
 
-- 📥 Descarga automática de imágenes satelitales VNP46A1 desde la NASA
-- 🗺️ Recorte de imágenes por coordenadas de municipio
-- 📊 Extracción de mediciones de radianza
-- 📈 Visualización de resultados con gráficos
-- 🔄 Procesamiento de múltiples fechas
-- ⚡ Versión asíncrona para mejor rendimiento
+- Descarga automática de imágenes satelitales VNP46A1 desde la NASA
+- Recorte de imágenes por coordenadas de municipio
+- Extracción de mediciones de radianza
+- Visualización de resultados con gráficos
+- Procesamiento de múltiples fechas
+- Versión asíncrona para mejor rendimiento
 
-## 🚀 Instalación
+## Instalación
 
 ### Prerrequisitos
 
@@ -41,7 +41,7 @@ pip install -r requirements.txt
 - **aiohttp**: Cliente HTTP asíncrono
 - **pydantic**: Validación de datos
 
-## 📁 Estructura del proyecto
+## Estructura del proyecto
 
 ```
 ├── satellite_sync/          # Implementación síncrona
@@ -68,7 +68,7 @@ pip install -r requirements.txt
 └── README.md              # Este archivo
 ```
 
-## 🎯 Uso
+## Uso
 
 ### Implementación Síncrona
 
@@ -117,7 +117,7 @@ cd satellite_async
 python main.py
 ```
 
-## 📊 Funcionalidades
+## Funcionalidades
 
 ### Procesamiento de Imágenes
 
@@ -137,7 +137,7 @@ python main.py
 - **Cache local**: Almacenamiento temporal de archivos descargados
 - **Validación**: Verificación de integridad de datos con Pydantic
 
-## 🔧 Configuración
+## Configuración
 
 ### Parámetros principales
 
@@ -151,7 +151,7 @@ python main.py
 - `satellite_sync/config.py`: Configuración para versión síncrona
 - `satellite_async/config.py`: Configuración para versión asíncrona
 
-## 📈 Resultados
+## Resultados
 
 El sistema genera:
 
@@ -159,7 +159,7 @@ El sistema genera:
 2. **Gráficos de visualización**: Mapas de calor y gráficos temporales
 3. **Estadísticas**: Resúmenes estadísticos de los datos procesados
 
-## 🛠️ Desarrollo
+## Desarrollo
 
 ### Agregar nuevos municipios
 
@@ -172,14 +172,14 @@ El sistema genera:
 - Usar los modelos Pydantic para validación de datos
 - Seguir el patrón establecido en los procesadores existentes
 
-## 📝 Notas
+## Notas
 
 - Las imágenes VNP46A1 contienen datos de luminosidad nocturna
 - El procesamiento puede tomar tiempo dependiendo del número de fechas
 - Se recomienda usar la versión asíncrona para grandes volúmenes de datos
 - Los archivos temporales se almacenan en el directorio `temp/`
 
-## 🤝 Contribuciones
+## Contribuciones
 
 Para contribuir al proyecto:
 
@@ -189,15 +189,15 @@ Para contribuir al proyecto:
 4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
 5. Crea un Pull Request
 
-## 📄 Licencia
+## Licencia
 
 Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
 
-## 👥 Autores
+## Autores
 
 - Desarrollado para el trabajo terminal de ESCOM
 - Basado en datos de la NASA VNP46A1
 
-## 📞 Contacto
+## Contacto
 
 Para preguntas o soporte, por favor abrir un issue en el repositorio. 
