@@ -11,11 +11,8 @@ from models import MedicionResultado
 from utils import parse_date, extraer_coordenadas, left_right_coords, polygon_centroid
 from downloader import find_file, download_file
 from image_processor import recortar_imagen, completar_bordes, get_pixeles, detect_orphan_pixels
-from image_processor import recortar_imagen, completar_bordes, get_pixeles, detect_orphan_pixels
-
 
 pd.set_option('display.max_columns', None)
-
 pd.set_option('display.max_rows', None)
 
 class SatelliteProcessor:
@@ -24,9 +21,7 @@ class SatelliteProcessor:
     """
     
     def __init__(self, municipio: str, factor_escala: int = 1):
-    def __init__(self, municipio: str, factor_escala: int = 1):
         self.municipio = municipio
-        self.factor_escala = factor_escala
         self.factor_escala = factor_escala
     
     def _save_plot(self, fig, date_obj: str, quadrant: str, plot_type: str = "analysis"):
@@ -64,9 +59,6 @@ class SatelliteProcessor:
             Diccionario con las mediciones o None si hay error
         """
         year, day, date_obj = parse_date(date_str)
-        
-        # Usar el factor de escala pasado como parámetro o el del constructor
-        escala_a_usar = factor_escala if factor_escala is not None else self.factor_escala
         
         # Usar el factor de escala pasado como parámetro o el del constructor
         escala_a_usar = factor_escala if factor_escala is not None else self.factor_escala
@@ -143,38 +135,18 @@ class SatelliteProcessor:
 
                 
                 # Calcular centroide y obtener píxeles principales
-                # Calcular centroide y obtener píxeles principales
                 cx, cy = polygon_centroid(coordenadas_bordes)
                 coordenadas_pixeles_principales = get_pixeles(imagen_recortada, (cx, cy), coordenadas_bordes)
                 
                 # Detectar píxeles huérfanos (zonas no seleccionadas completamente rodeadas por bordes)
                 coordenadas_pixeles_huerfanos = detect_orphan_pixels(imagen_recortada, coordenadas_bordes, coordenadas_pixeles_principales)
-                coordenadas_pixeles_principales = get_pixeles(imagen_recortada, (cx, cy), coordenadas_bordes)
-                
-                # Detectar píxeles huérfanos (zonas no seleccionadas completamente rodeadas por bordes)
-                coordenadas_pixeles_huerfanos = detect_orphan_pixels(imagen_recortada, coordenadas_bordes, coordenadas_pixeles_principales)
 
-                # Extraer valores de píxeles principales
-                pixeles_principales = []
-                for x, y in coordenadas_pixeles_principales:
                 # Extraer valores de píxeles principales
                 pixeles_principales = []
                 for x, y in coordenadas_pixeles_principales:
                     if (0 <= y < imagen_recortada.shape[0] and 
                         0 <= x < imagen_recortada.shape[1]):
                         copia_imagen[y, x] = 2500
-                        pixeles_principales.append(imagen_recortada[y, x])
-
-                # Extraer valores de píxeles huérfanos
-                pixeles_huerfanos = []
-                for x, y in coordenadas_pixeles_huerfanos:
-                    if (0 <= y < imagen_recortada.shape[0] and 
-                        0 <= x < imagen_recortada.shape[1]):
-                        copia_imagen[y, x] = 3000  # Different color for orphan pixels
-                        pixeles_huerfanos.append(imagen_recortada[y, x])
-
-                # Combinar todos los píxeles para estadísticas generales
-                pixeles_imagen = pixeles_principales + pixeles_huerfanos
                         pixeles_principales.append(imagen_recortada[y, x])
 
                 # Extraer valores de píxeles huérfanos
@@ -196,12 +168,8 @@ class SatelliteProcessor:
                         ax[2][1].hist(pixeles_principales, bins=50, alpha=0.7, label='Main pixels', color='blue')
                         if pixeles_huerfanos:
                             ax[2][1].hist(pixeles_huerfanos, bins=50, alpha=0.7, label='Orphan pixels', color='red')
-                        ax[2][1].hist(pixeles_principales, bins=50, alpha=0.7, label='Main pixels', color='blue')
-                        if pixeles_huerfanos:
-                            ax[2][1].hist(pixeles_huerfanos, bins=50, alpha=0.7, label='Orphan pixels', color='red')
                         ax[2][1].grid(True)
                         ax[2][1].set_title("Histograma de radiación")
-                        ax[2][1].legend()
                         ax[2][1].legend()
                     else:
                         ax[2][1].text(0.5, 0.5, "No hay píxeles seleccionados", 
@@ -217,8 +185,6 @@ class SatelliteProcessor:
                 medicion = MedicionResultado(
                     Fecha=date_obj,
                     Cantidad_de_pixeles=len(pixeles_imagen),
-                    Cantidad_de_pixeles_principales=len(pixeles_principales),
-                    Cantidad_de_pixeles_huerfanos=len(pixeles_huerfanos),
                     Cantidad_de_pixeles_principales=len(pixeles_principales),
                     Cantidad_de_pixeles_huerfanos=len(pixeles_huerfanos),
                     Suma_de_radianza=float(np.sum(pixeles_imagen)),
@@ -242,7 +208,6 @@ class SatelliteProcessor:
                 return None
 
     def run(self, fechas: List[str], quadrant: str = "h08v07", show_plots: bool = False, factor_escala: int = None) -> pd.DataFrame:
-    def run(self, fechas: List[str], quadrant: str = "h08v07", show_plots: bool = False, factor_escala: int = None) -> pd.DataFrame:
         """
         Procesa múltiples fechas y retorna un dataframe con los resultados.
         
@@ -250,7 +215,6 @@ class SatelliteProcessor:
             fechas: Lista de fechas en formato dd-mm-yy
             quadrant: Cuadrante de la imagen (por defecto h08v07)
             show_plots: Si mostrar las visualizaciones de matplotlib
-            factor_escala: Factor de escala para aumentar la resolución de la imagen (por defecto usa el del constructor)
             factor_escala: Factor de escala para aumentar la resolución de la imagen (por defecto usa el del constructor)
             
         Returns:
@@ -261,13 +225,9 @@ class SatelliteProcessor:
         # Usar el factor de escala pasado como parámetro o el del constructor
         escala_a_usar = factor_escala if factor_escala is not None else self.factor_escala
         
-        # Usar el factor de escala pasado como parámetro o el del constructor
-        escala_a_usar = factor_escala if factor_escala is not None else self.factor_escala
-        
         for fecha in fechas:
             print(f"Procesando fecha: {fecha}")
             try:
-                datos = self.get_measures(fecha, quadrant, show_plots=show_plots, factor_escala=escala_a_usar)
                 datos = self.get_measures(fecha, quadrant, show_plots=show_plots, factor_escala=escala_a_usar)
                 if datos:
                     results.append(datos)
@@ -283,7 +243,6 @@ class SatelliteProcessor:
         return pd.DataFrame(results)
 
     def recortar_imagen_solo(self, date_str: str, quadrant: str, factor_escala: int = None) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
-    def recortar_imagen_solo(self, date_str: str, quadrant: str, factor_escala: int = None) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
         """
         Solo recorta la imagen sin hacer mediciones completas.
         
@@ -291,15 +250,11 @@ class SatelliteProcessor:
             date_str: Fecha en formato dd-mm-yy
             quadrant: Cuadrante de la imagen
             factor_escala: Factor de escala para aumentar la resolución de la imagen (por defecto usa el del constructor)
-            factor_escala: Factor de escala para aumentar la resolución de la imagen (por defecto usa el del constructor)
             
         Returns:
             Tuple con (imagen_recortada, copia_imagen, nuevos_x, nuevos_y)
         """
         year, day, date_obj = parse_date(date_str)
-        
-        # Usar el factor de escala pasado como parámetro o el del constructor
-        escala_a_usar = factor_escala if factor_escala is not None else self.factor_escala
         
         # Usar el factor de escala pasado como parámetro o el del constructor
         escala_a_usar = factor_escala if factor_escala is not None else self.factor_escala
@@ -333,7 +288,6 @@ class SatelliteProcessor:
             try:
                 imagen_recortada, nuevos_x, nuevos_y = recortar_imagen(
                     image_matrix, coordenadas_municipio, left_coord, escala_a_usar
-                    image_matrix, coordenadas_municipio, left_coord, escala_a_usar
                 )
                 
                 if imagen_recortada.size == 0:
@@ -346,4 +300,4 @@ class SatelliteProcessor:
                 
             except Exception as e:
                 print(f"Error durante el recorte de la imagen: {e}")
-                return None 
+                return None
