@@ -121,7 +121,7 @@ def detect_orphan_pixels(imagen: np.ndarray, bordes: List[Tuple[int, int]],
                         main_pixels: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
     """
     Detects orphan pixels inside borders that were not selected by the main BFS.
-    Uses a second BFS to find pixels completely surrounded by border pixels.
+    Uses a second BFS to find pixels completely surrounded by selected pixels or borders.
     
     Args:
         imagen: Image matrix
@@ -134,6 +134,10 @@ def detect_orphan_pixels(imagen: np.ndarray, bordes: List[Tuple[int, int]],
     height, width = imagen.shape
     visited = np.zeros((height, width), dtype=bool)
     orphan_pixels = []
+    
+    # Create sets for faster lookup
+    main_pixels_set = set(main_pixels)
+    bordes_set = set(bordes)
     
     # Mark main pixels as visited
     for x, y in main_pixels:
@@ -149,26 +153,27 @@ def detect_orphan_pixels(imagen: np.ndarray, bordes: List[Tuple[int, int]],
     for y in range(height):
         for x in range(width):
             if not visited[y, x] and not es_borde(x, y, bordes):
-                # Check if this pixel is completely surrounded by borders
-                if is_completely_surrounded_by_borders(x, y, bordes, height, width):
+                # Check if this pixel is completely surrounded by selected pixels or borders
+                if is_surrounded_by_selected_or_border(x, y, main_pixels_set, bordes_set, height, width):
                     # Start BFS from this pixel to find all connected orphan pixels
-                    orphan_group = bfs_orphan_group(x, y, visited, bordes, height, width)
+                    orphan_group = bfs_orphan_group(x, y, visited, bordes_set, height, width)
                     orphan_pixels.extend(orphan_group)
     
     return orphan_pixels
 
-def is_completely_surrounded_by_borders(x: int, y: int, bordes: List[Tuple[int, int]], 
-                                      height: int, width: int) -> bool:
+def is_surrounded_by_selected_or_border(x: int, y: int, main_pixels_set: set, 
+                                       bordes_set: set, height: int, width: int) -> bool:
     """
-    Checks if a pixel is completely surrounded by border pixels.
+    Checks if a pixel is completely surrounded by selected pixels or border pixels.
     
     Args:
         x, y: Pixel coordinates
-        bordes: List of border coordinates
+        main_pixels_set: Set of main pixel coordinates
+        bordes_set: Set of border pixel coordinates
         height, width: Image dimensions
         
     Returns:
-        True if pixel is completely surrounded by borders
+        True if pixel is completely surrounded by selected pixels or borders
     """
     # Check 8-connected neighbors
     neighbors = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
@@ -180,21 +185,21 @@ def is_completely_surrounded_by_borders(x: int, y: int, bordes: List[Tuple[int, 
         if nx < 0 or nx >= width or ny < 0 or ny >= height:
             continue
             
-        # If neighbor is not a border pixel, this pixel is not completely surrounded
-        if not es_borde(nx, ny, bordes):
+        # If neighbor is neither a main pixel nor a border pixel, this pixel is not surrounded
+        if (nx, ny) not in main_pixels_set and (nx, ny) not in bordes_set:
             return False
     
     return True
 
 def bfs_orphan_group(start_x: int, start_y: int, visited: np.ndarray, 
-                    bordes: List[Tuple[int, int]], height: int, width: int) -> List[Tuple[int, int]]:
+                    bordes_set: set, height: int, width: int) -> List[Tuple[int, int]]:
     """
     Performs BFS to find all connected orphan pixels starting from a given pixel.
     
     Args:
         start_x, start_y: Starting pixel coordinates
         visited: Visited matrix
-        bordes: List of border coordinates
+        bordes_set: Set of border pixel coordinates
         height, width: Image dimensions
         
     Returns:
@@ -215,7 +220,7 @@ def bfs_orphan_group(start_x: int, start_y: int, visited: np.ndarray,
             nx, ny = x + dx, y + dy
             
             if (0 <= nx < width and 0 <= ny < height and 
-                not visited[ny, nx] and not es_borde(nx, ny, bordes)):
+                not visited[ny, nx] and (nx, ny) not in bordes_set):
                 
                 visited[ny, nx] = True
                 queue.append((nx, ny))
