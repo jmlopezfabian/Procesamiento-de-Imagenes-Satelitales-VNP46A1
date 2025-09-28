@@ -12,6 +12,11 @@ from utils import parse_date, extraer_coordenadas, left_right_coords, polygon_ce
 from downloader import find_file, download_file
 from image_processor import recortar_imagen, completar_bordes, get_pixeles
 
+
+pd.set_option('display.max_columns', None)
+
+pd.set_option('display.max_rows', None)
+
 class SatelliteProcessor:
     """
     Clase principal para procesar imágenes satelitales del producto VNP46A1.
