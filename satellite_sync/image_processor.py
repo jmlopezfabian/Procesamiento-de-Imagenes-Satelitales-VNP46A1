@@ -116,3 +116,109 @@ def get_pixeles(imagen: np.ndarray, centroide: Tuple[float, float],
                 pixeles_imagen.append((x_nuevo, y_nuevo))
     
     return pixeles_imagen 
+
+def detect_orphan_pixels(imagen: np.ndarray, bordes: List[Tuple[int, int]], 
+                        main_pixels: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    """
+    Detects orphan pixels inside borders that were not selected by the main BFS.
+    Uses a second BFS to find pixels completely surrounded by border pixels.
+    
+    Args:
+        imagen: Image matrix
+        bordes: List of coordinates that form the polygon border
+        main_pixels: List of pixels already selected by the main BFS
+        
+    Returns:
+        List of orphan pixel coordinates
+    """
+    height, width = imagen.shape
+    visited = np.zeros((height, width), dtype=bool)
+    orphan_pixels = []
+    
+    # Mark main pixels as visited
+    for x, y in main_pixels:
+        if 0 <= x < width and 0 <= y < height:
+            visited[y, x] = True
+    
+    # Mark border pixels as visited
+    for x, y in bordes:
+        if 0 <= x < width and 0 <= y < height:
+            visited[y, x] = True
+    
+    # Find unvisited pixels that are inside the polygon
+    for y in range(height):
+        for x in range(width):
+            if not visited[y, x] and not es_borde(x, y, bordes):
+                # Check if this pixel is completely surrounded by borders
+                if is_completely_surrounded_by_borders(x, y, bordes, height, width):
+                    # Start BFS from this pixel to find all connected orphan pixels
+                    orphan_group = bfs_orphan_group(x, y, visited, bordes, height, width)
+                    orphan_pixels.extend(orphan_group)
+    
+    return orphan_pixels
+
+def is_completely_surrounded_by_borders(x: int, y: int, bordes: List[Tuple[int, int]], 
+                                      height: int, width: int) -> bool:
+    """
+    Checks if a pixel is completely surrounded by border pixels.
+    
+    Args:
+        x, y: Pixel coordinates
+        bordes: List of border coordinates
+        height, width: Image dimensions
+        
+    Returns:
+        True if pixel is completely surrounded by borders
+    """
+    # Check 8-connected neighbors
+    neighbors = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+    
+    for dx, dy in neighbors:
+        nx, ny = x + dx, y + dy
+        
+        # If neighbor is out of bounds, consider it as border
+        if nx < 0 or nx >= width or ny < 0 or ny >= height:
+            continue
+            
+        # If neighbor is not a border pixel, this pixel is not completely surrounded
+        if not es_borde(nx, ny, bordes):
+            return False
+    
+    return True
+
+def bfs_orphan_group(start_x: int, start_y: int, visited: np.ndarray, 
+                    bordes: List[Tuple[int, int]], height: int, width: int) -> List[Tuple[int, int]]:
+    """
+    Performs BFS to find all connected orphan pixels starting from a given pixel.
+    
+    Args:
+        start_x, start_y: Starting pixel coordinates
+        visited: Visited matrix
+        bordes: List of border coordinates
+        height, width: Image dimensions
+        
+    Returns:
+        List of orphan pixel coordinates in this group
+    """
+    orphan_group = []
+    queue = [(start_x, start_y)]
+    visited[start_y, start_x] = True
+    orphan_group.append((start_x, start_y))
+    
+    # 4-connected neighbors for BFS
+    directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    
+    while queue:
+        x, y = queue.pop(0)
+        
+        for dx, dy in directions:
+            nx, ny = x + dx, y + dy
+            
+            if (0 <= nx < width and 0 <= ny < height and 
+                not visited[ny, nx] and not es_borde(nx, ny, bordes)):
+                
+                visited[ny, nx] = True
+                queue.append((nx, ny))
+                orphan_group.append((nx, ny))
+    
+    return orphan_group
