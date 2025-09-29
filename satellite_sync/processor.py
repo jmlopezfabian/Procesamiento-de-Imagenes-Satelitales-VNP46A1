@@ -186,7 +186,6 @@ class SatelliteProcessor:
                     Fecha=date_obj,
                     Cantidad_de_pixeles=len(pixeles_imagen),
                     Cantidad_de_pixeles_principales=len(pixeles_principales),
-                    Cantidad_de_pixeles_huerfanos=len(pixeles_huerfanos),
                     Suma_de_radianza=float(np.sum(pixeles_imagen)),
                     Media_de_radianza=float(np.mean(pixeles_imagen)),
                     Desviacion_estandar_de_radianza=float(np.std(pixeles_imagen)),

@@ -10,7 +10,6 @@ class MedicionResultado(BaseModel):
     Fecha: date = Field(..., description="Date of the measurement")
     Cantidad_de_pixeles: int = Field(..., description="Total number of pixels")
     Cantidad_de_pixeles_principales: int = Field(..., description="Number of main pixels")
-    Cantidad_de_pixeles_huerfanos: int = Field(..., description="Number of orphan pixels")
     Suma_de_radianza: float = Field(..., description="Sum of the radiance")
     Media_de_radianza: float = Field(..., description="Mean of the radiance")
     Desviacion_estandar_de_radianza: float = Field(..., description="Standard deviation of the radiance")
