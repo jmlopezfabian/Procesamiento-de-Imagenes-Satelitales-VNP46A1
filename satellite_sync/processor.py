@@ -2,9 +2,9 @@ import h5py
 import numpy as np
 import pandas as pd
 import matplotlib
-#matplotlib.use('Agg')  # Configurar backend no interactivo
+matplotlib.use('Agg')  # Configurar backend no interactivo
 #configuraar backend interactivo
-matplotlib.use('TkAgg')
+#matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import os
 from typing import Optional, Tuple, List
