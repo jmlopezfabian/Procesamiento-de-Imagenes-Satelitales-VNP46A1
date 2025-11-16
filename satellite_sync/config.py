@@ -1,9 +1,39 @@
 import os
+import h5py
 
 # URLs y rutas
-BASE_URL = "https://ladsweb.modaps.eosdis.nasa.gov/archive/allData/5000/VNP46A1/{year}/{day}/"
+BASE_URL = "https://ladsweb.modaps.eosdis.nasa.gov/archive/allData/5200/VNP46A1/{year}/{day}/"
 IMAGE_PATH = "HDFEOS/GRIDS/VNP_Grid_DNB/Data Fields/DNB_At_Sensor_Radiance_500m"
 RUTA_MUNICIPIOS = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'limite-de-las-alcaldias.json')
+
+def find_image_path(hdf_file):
+    """
+    Encuentra automáticamente la ruta correcta a los datos de radianza en el archivo HDF5.
+    Intenta primero el path estándar, luego busca alternativas.
+    """
+    # Primero intentar el path estándar
+    if IMAGE_PATH in hdf_file:
+        return IMAGE_PATH
+    
+    # Si no existe, buscar en la estructura del archivo
+    try:
+        grids = hdf_file.get('HDFEOS/GRIDS')
+        if grids:
+            for grid_name in grids.keys():
+                grid = grids[grid_name]
+                if 'Data Fields' in grid:
+                    data_fields = grid['Data Fields']
+                    # Buscar el campo de radianza
+                    for field_name in data_fields.keys():
+                        if 'Radiance' in field_name or 'DNB' in field_name:
+                            path = f"HDFEOS/GRIDS/{grid_name}/Data Fields/{field_name}"
+                            if path in hdf_file:
+                                return path
+    except:
+        pass
+    
+    # Si nada funciona, devolver el path por defecto
+    return IMAGE_PATH
 
 # Token de autenticación
 TOKEN = os.getenv("NASA_API_TOKEN")
