@@ -2,11 +2,13 @@ import h5py
 import numpy as np
 import pandas as pd
 import matplotlib
-matplotlib.use('Agg')  # Configurar backend no interactivo
+#matplotlib.use('Agg')  # Configurar backend no interactivo
+#configuraar backend interactivo
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import os
 from typing import Optional, Tuple, List
-from config import IMAGE_PATH
+from config import IMAGE_PATH, find_image_path
 from models import MedicionResultado
 from utils import parse_date, extraer_coordenadas, left_right_coords, polygon_centroid
 from downloader import find_file, download_file
@@ -80,7 +82,18 @@ class SatelliteProcessor:
             if left_coord is None or right_coord is None:
                 print("No se pudieron extraer las coordenadas del archivo HDF.")
                 return None
-            image_matrix = hdf_file[IMAGE_PATH][()]
+            
+            # Encontrar la ruta correcta a los datos de imagen
+            image_path = find_image_path(hdf_file)
+            if image_path not in hdf_file:
+                print(f"Error: No se encontró la ruta '{image_path}' en el archivo HDF5.")
+                print("Estructura del archivo HDF5:")
+                def print_structure(name, obj):
+                    print(name)
+                hdf_file.visititems(print_structure)
+                return None
+            
+            image_matrix = hdf_file[image_path][()]
             coordenadas_municipio = extraer_coordenadas(self.municipio)
             if coordenadas_municipio is None:
                 print("No se pudieron extraer las coordenadas del municipio.")
@@ -111,26 +124,43 @@ class SatelliteProcessor:
                     ax[0][1].imshow(imagen_recortada)
                     ax[0][1].set_title("Imagen recortada")
 
-                # Marcar bordes incompletos
+                # Preparar coordenadas de bordes incompletos para visualización (sin modificar la imagen)
+                bordes_incompletos_x = []
+                bordes_incompletos_y = []
                 for i in range(len(nuevos_y)):
                     if (0 <= int(nuevos_y[i]) < imagen_recortada.shape[0] and 
                         0 <= int(nuevos_x[i]) < imagen_recortada.shape[1]):
-                        copia_imagen[int(nuevos_y[i]), int(nuevos_x[i])] = 2500
+                        bordes_incompletos_x.append(int(nuevos_x[i]))
+                        bordes_incompletos_y.append(int(nuevos_y[i]))
 
                 if show_plots:
                     ax[1][0].imshow(copia_imagen)
+                    if bordes_incompletos_x:
+                        ax[1][0].plot(bordes_incompletos_x, bordes_incompletos_y, 'k-', linewidth=1.5, alpha=0.8, label='Bordes')
+                        ax[1][0].scatter(bordes_incompletos_x, bordes_incompletos_y, c='red', s=1, alpha=0.6)
                     ax[1][0].set_title("Imagen con bordes incompletos")
 
                 # Completar bordes
                 coordenadas_bordes = completar_bordes(nuevos_x, nuevos_y)
 
+                # Preparar coordenadas de bordes completos para visualización (sin modificar la imagen)
+                bordes_completos_x = []
+                bordes_completos_y = []
                 for coordenada in coordenadas_bordes:
                     if (0 <= coordenada[1] < imagen_recortada.shape[0] and 
                         0 <= coordenada[0] < imagen_recortada.shape[1]):
-                        copia_imagen[coordenada[1], coordenada[0]] = 2500
+                        bordes_completos_x.append(coordenada[0])
+                        bordes_completos_y.append(coordenada[1])
 
                 if show_plots:
                     ax[1][1].imshow(copia_imagen)
+                    if bordes_completos_x:
+                        # Dibujar bordes como línea cerrada
+                        if len(bordes_completos_x) > 1:
+                            ax[1][1].plot(bordes_completos_x + [bordes_completos_x[0]], 
+                                         bordes_completos_y + [bordes_completos_y[0]], 
+                                         'k-', linewidth=2, alpha=0.9, label='Bordes completos')
+                        ax[1][1].scatter(bordes_completos_x, bordes_completos_y, c='red', s=2, alpha=0.7)
                     ax[1][1].set_title("Imagen con bordes completos")
 
                 
@@ -141,28 +171,45 @@ class SatelliteProcessor:
                 # Detectar píxeles huérfanos (zonas no seleccionadas completamente rodeadas por bordes)
                 coordenadas_pixeles_huerfanos = detect_orphan_pixels(imagen_recortada, coordenadas_bordes, coordenadas_pixeles_principales)
 
-                # Extraer valores de píxeles principales
+                # Extraer valores de píxeles principales (sin modificar la imagen)
                 pixeles_principales = []
+                pixeles_principales_coords = []
                 for x, y in coordenadas_pixeles_principales:
                     if (0 <= y < imagen_recortada.shape[0] and 
                         0 <= x < imagen_recortada.shape[1]):
-                        copia_imagen[y, x] = 2500
                         pixeles_principales.append(imagen_recortada[y, x])
+                        pixeles_principales_coords.append((x, y))
 
-                # Extraer valores de píxeles huérfanos
+                # Extraer valores de píxeles huérfanos (sin modificar la imagen)
                 pixeles_huerfanos = []
+                pixeles_huerfanos_coords = []
                 for x, y in coordenadas_pixeles_huerfanos:
                     if (0 <= y < imagen_recortada.shape[0] and 
                         0 <= x < imagen_recortada.shape[1]):
-                        copia_imagen[y, x] = 3000  # Different color for orphan pixels
                         pixeles_huerfanos.append(imagen_recortada[y, x])
+                        pixeles_huerfanos_coords.append((x, y))
 
                 # Combinar todos los píxeles para estadísticas generales
                 pixeles_imagen = pixeles_principales + pixeles_huerfanos
 
                 if show_plots:
                     ax[2][0].imshow(copia_imagen)
+                    # Dibujar bordes
+                    if bordes_completos_x:
+                        if len(bordes_completos_x) > 1:
+                            ax[2][0].plot(bordes_completos_x + [bordes_completos_x[0]], 
+                                         bordes_completos_y + [bordes_completos_y[0]], 
+                                         'k-', linewidth=2, alpha=0.9, label='Bordes')
+                    # Dibujar píxeles principales como puntos
+                    if pixeles_principales_coords:
+                        px_coords = list(zip(*pixeles_principales_coords))
+                        ax[2][0].scatter(px_coords[0], px_coords[1], c='blue', s=0.5, alpha=0.3, label='Píxeles principales')
+                    # Dibujar píxeles huérfanos como puntos
+                    if pixeles_huerfanos_coords:
+                        hx_coords = list(zip(*pixeles_huerfanos_coords))
+                        ax[2][0].scatter(hx_coords[0], hx_coords[1], c='red', s=0.5, alpha=0.3, label='Píxeles huérfanos')
                     ax[2][0].set_title("Imagen con pixeles seleccionados")
+                    ax[2][0].legend(loc='upper right', fontsize=8)
 
                     if pixeles_imagen:  # Solo mostrar histograma si hay píxeles
                         ax[2][1].hist(pixeles_principales, bins=50, alpha=0.7, label='Main pixels', color='blue')
@@ -274,8 +321,18 @@ class SatelliteProcessor:
             if left_coord is None or right_coord is None:
                 print("No se pudieron extraer las coordenadas del archivo HDF.")
                 return None
+            
+            # Encontrar la ruta correcta a los datos de imagen
+            image_path = find_image_path(hdf_file)
+            if image_path not in hdf_file:
+                print(f"Error: No se encontró la ruta '{image_path}' en el archivo HDF5.")
+                print("Estructura del archivo HDF5:")
+                def print_structure(name, obj):
+                    print(name)
+                hdf_file.visititems(print_structure)
+                return None
                 
-            image_matrix = hdf_file[IMAGE_PATH][()]
+            image_matrix = hdf_file[image_path][()]
             coordenadas_municipio = extraer_coordenadas(self.municipio)
             
             if coordenadas_municipio is None:

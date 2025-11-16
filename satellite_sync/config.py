@@ -12,13 +12,16 @@ def find_image_path(hdf_file):
     Intenta primero el path estándar, luego busca alternativas.
     """
     # Primero intentar el path estándar
-    if IMAGE_PATH in hdf_file:
-        return IMAGE_PATH
+    try:
+        if IMAGE_PATH in hdf_file:
+            return IMAGE_PATH
+    except:
+        pass
     
     # Si no existe, buscar en la estructura del archivo
     try:
-        grids = hdf_file.get('HDFEOS/GRIDS')
-        if grids:
+        if 'HDFEOS' in hdf_file and 'GRIDS' in hdf_file['HDFEOS']:
+            grids = hdf_file['HDFEOS']['GRIDS']
             for grid_name in grids.keys():
                 grid = grids[grid_name]
                 if 'Data Fields' in grid:
@@ -27,10 +30,13 @@ def find_image_path(hdf_file):
                     for field_name in data_fields.keys():
                         if 'Radiance' in field_name or 'DNB' in field_name:
                             path = f"HDFEOS/GRIDS/{grid_name}/Data Fields/{field_name}"
-                            if path in hdf_file:
-                                return path
-    except:
-        pass
+                            try:
+                                if path in hdf_file:
+                                    return path
+                            except:
+                                continue
+    except Exception as e:
+        print(f"Error buscando ruta alternativa en HDF5: {e}")
     
     # Si nada funciona, devolver el path por defecto
     return IMAGE_PATH

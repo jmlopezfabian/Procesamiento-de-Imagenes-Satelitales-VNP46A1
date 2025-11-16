@@ -3,7 +3,7 @@ from processor import SatelliteProcessor
 
 if __name__ == "__main__":
     # Configuración del procesador
-    municipio = "Oaxaca de Juárez"
+    municipio = "Iztapalapa"
     factor_escala = 1  # Factor de escala modificable (1 = sin escalado, 2 = doble tamaño, etc.)
     
     processor = SatelliteProcessor(municipio, factor_escala=factor_escala)
