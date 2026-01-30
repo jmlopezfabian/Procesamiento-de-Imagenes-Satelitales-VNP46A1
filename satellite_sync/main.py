@@ -3,13 +3,13 @@ from processor import SatelliteProcessor
 
 if __name__ == "__main__":
     # Configuración del procesador
-    municipio = "oaxaca de juarez"
+    municipio = "Iztapalapa"
     factor_escala = 1  # Factor de escala modificable (1 = sin escalado, 2 = doble tamaño, etc.)
     
     processor = SatelliteProcessor(municipio, factor_escala=factor_escala)
     
     # Lista de fechas a procesar
-    fechas = ["02-02-24"]
+    fechas = ["01-01-24"]
     
     # Procesar múltiples fechas y obtener dataframe con visualizaciones
     df = processor.run(fechas, "h08v07", show_plots=True, factor_escala=factor_escala)
