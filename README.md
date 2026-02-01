@@ -9,6 +9,8 @@ El proyecto incluye dos implementaciones principales:
 - **`satellite_sync/`**: Implementación síncrona para procesamiento de imágenes satelitales
 - **`satellite_async/`**: Implementación asíncrona para procesamiento más eficiente
 
+![Flujo de procesamiento de píxeles](images/Flujo_pixeles_hueco.PNG)
+
 ### Características principales
 
 - Descarga automática de imágenes satelitales VNP46A1 desde la NASA
