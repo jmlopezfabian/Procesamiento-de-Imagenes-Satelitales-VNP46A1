@@ -2,6 +2,8 @@ import asyncio
 import pandas as pd
 import os
 import glob
+from typing import Callable
+
 from .config import PIXELES_MUNICIPIOS
 from .utils import normalize_municipio, parse_date, load_coord_data
 from .downloader import find_file, download_file
@@ -186,10 +188,18 @@ class SatelliteImagesAsync:
         
         return results
 
-    async def run(self, fechas, chunks=None, save_progress_enabled=True):
+    async def run(self, fechas, chunks=None, save_progress_enabled=True, on_progress: Callable[[str], None] | None = None):
         results = []
         import aiohttp
-        
+        total_fechas = len(fechas)
+        completed_count = 0
+
+        def _report_progress():
+            nonlocal completed_count
+            completed_count += 1
+            if on_progress is not None:
+                on_progress(f"{completed_count}/{total_fechas} fechas")
+
         try:
             async with aiohttp.ClientSession() as session:
                 if chunks is None:
@@ -199,6 +209,7 @@ class SatelliteImagesAsync:
                         datos_list = await result
                         if datos_list:
                             results.extend(datos_list)
+                        _report_progress()
                 else:
                     # Procesamiento por chunks
                     fechas_chunks = chunk_list(fechas, chunks)
@@ -218,6 +229,8 @@ class SatelliteImagesAsync:
                             
                             # Agregar resultados del chunk actual
                             results.extend(chunk_results)
+                            for _ in chunk_fechas:
+                                _report_progress()
                             print(f"Chunk {i+1} completado. Resultados obtenidos: {len(chunk_results)}")
                             
                             # Guardar progreso después de cada chunk
