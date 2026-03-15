@@ -3,8 +3,8 @@ import re
 import numpy as np
 from datetime import datetime
 from typing import Tuple, List, Optional
-from models import CoordenadasPixeles
-from config import RUTA_MUNICIPIOS
+from .models import CoordenadasPixeles
+from .config import RUTA_MUNICIPIOS
 
 def normalize_municipio(municipio: str) -> str:
     """Normaliza el nombre del municipio removiendo acentos"""

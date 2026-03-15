@@ -78,7 +78,7 @@ for i, municipio in enumerate(datos["features"]):
         print(f"La distancia entre el centroide de {municipio['properties']['NOMGEO']} y el centroide de la CDMX es {distancia:.4f}")
 
 df_distancias = pd.DataFrame(distancias_data)
-df_distancias.to_csv('../data/distancias_centroide_cdmx.csv', index=False)
+df_distancias.to_parquet('../data/distancias_centroide_cdmx.parquet', index=False)
 
 plt.legend()
 plt.title("Centroide de CDMX y centroides de alcaldias")

@@ -16,23 +16,20 @@ Módulos principales:
 - processor: Clase principal SatelliteProcessor
 """
 
-from processor import SatelliteProcessor
-from models import (
+from .processor import SatelliteProcessor
+from .models import (
     CoordenadasPixeles,
     MedicionResultado,
-    CoordenadasMunicipio,
-    ImagenProcesada,
-    ResultadoProcesamiento
 )
-from utils import (
+from .utils import (
     normalize_municipio,
     parse_date,
     extraer_coordenadas,
     left_right_coords,
     polygon_centroid
 )
-from downloader import find_file, download_file
-from image_processor import (
+from .downloader import find_file, download_file
+from .image_processor import (
     recortar_imagen,
     completar_bordes,
     get_pixeles,
@@ -46,9 +43,6 @@ __all__ = [
     "SatelliteProcessor",
     "CoordenadasPixeles",
     "MedicionResultado",
-    "CoordenadasMunicipio",
-    "ImagenProcesada",
-    "ResultadoProcesamiento",
     "normalize_municipio",
     "parse_date",
     "extraer_coordenadas",

@@ -2,11 +2,11 @@ import asyncio
 import pandas as pd
 import os
 import glob
-from config import PIXELES_MUNICIPIOS
-from utils import normalize_municipio, parse_date, load_coord_data
-from downloader import find_file, download_file
-from processing import process_image
-from models import MedicionResultado
+from .config import PIXELES_MUNICIPIOS
+from .utils import normalize_municipio, parse_date, load_coord_data
+from .downloader import find_file, download_file
+from .processing import process_image
+from .models import MedicionResultado
 
 def chunk_list(lst, chunk_size):
     """Divide una lista en chunks del tamaño especificado"""
@@ -25,19 +25,19 @@ def cleanup_temp_files():
                 print(f"Error eliminando archivo residual {file_path}: {e}")
 
 def save_progress(df, municipio, chunk_number=None):
-    """Guarda el progreso actual en un CSV"""
+    """Guarda el progreso actual en Parquet"""
     try:
         # Crear directorio si no existe
         os.makedirs("../data", exist_ok=True)
         
         # Nombre del archivo con información del chunk
         if chunk_number is not None:
-            filename = f"../data/{municipio}_progress_chunk_{chunk_number}.csv"
+            filename = f"../data/{municipio}_progress_chunk_{chunk_number}.parquet"
         else:
-            filename = f"../data/{municipio}_progress.csv"
+            filename = f"../data/{municipio}_progress.parquet"
         
-        # Guardar CSV
-        df.to_csv(filename, index=False)
+        # Guardar Parquet
+        df.to_parquet(filename, index=False)
         print(f"✅ Progreso guardado: {filename} ({len(df)} registros)")
         return filename
     except Exception as e:
@@ -60,7 +60,7 @@ async def process_chunks(satellite_instance, fechas, chunks, session, municipio)
             for result in asyncio.as_completed(tasks):
                 datos = await result
                 if datos:
-                    chunk_results.append(datos.dict())
+                    chunk_results.append(datos.model_dump())
             
             # Agregar resultados del chunk actual
             results.extend(chunk_results)
@@ -169,7 +169,7 @@ class SatelliteImagesAsync:
                         delete_file=False  # No eliminar el archivo hasta procesar todos los municipios
                     )
                     if datos:
-                        results.append(datos.dict())
+                        results.append(datos.model_dump())
                         print(f"✅ Procesado: {municipio_data['nombre']} - {date_obj}")
                     else:
                         print(f"⚠️ Sin datos para: {municipio_data['nombre']} - {date_obj}")

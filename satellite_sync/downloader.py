@@ -1,7 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 import os
-from config import BASE_URL, HEADERS, CHUNK_SIZE
+from .config import BASE_URL, HEADERS, CHUNK_SIZE
 
 def find_file(year: int, day: int, quadrant: str) -> str:
     """

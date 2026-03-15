@@ -21,7 +21,7 @@ if __name__ == "__main__":
     print(f"Resultados: {len(df1)} registros")
     t2 = time.time()
     print(f"Tiempo de ejecución: {t2 - t1} segundos")
-    df1.to_csv(f"../data/Iztapalapa_Tlalpan.csv", index=False)
-    print(f"\nResultados guardados en ../data/Iztapalapa_Tlalpan.csv")
+    df1.to_parquet(f"../data/Iztapalapa_Tlalpan.parquet", index=False)
+    print(f"\nResultados guardados en ../data/Iztapalapa_Tlalpan.parquet")
     print(df1.head())
     

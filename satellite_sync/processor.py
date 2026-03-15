@@ -8,11 +8,11 @@ matplotlib.use('Agg')  # Configurar backend no interactivo
 import matplotlib.pyplot as plt
 import os
 from typing import Optional, Tuple, List
-from config import IMAGE_PATH, find_image_path
-from models import MedicionResultado
-from utils import parse_date, extraer_coordenadas, left_right_coords, polygon_centroid
-from downloader import find_file, download_file
-from image_processor import recortar_imagen, completar_bordes, get_pixeles, detect_orphan_pixels
+from .config import IMAGE_PATH, find_image_path
+from .models import MedicionResultado
+from .utils import parse_date, extraer_coordenadas, left_right_coords, polygon_centroid
+from .downloader import find_file, download_file
+from .image_processor import recortar_imagen, completar_bordes, get_pixeles, detect_orphan_pixels
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
@@ -247,7 +247,7 @@ class SatelliteProcessor:
                     plt.show()
                     self._save_plot(plt.gcf(), date_obj, quadrant, "analysis")
                 os.remove(h5_save_path)
-                return medicion.dict()
+                return medicion.model_dump()
                 
             except Exception as e:
                 print(f"Error durante el procesamiento de la imagen: {e}")

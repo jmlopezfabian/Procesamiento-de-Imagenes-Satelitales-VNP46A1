@@ -1,0 +1,21 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "NOMGEO": "Iztapalapa" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-99.05, 19.35],
+            [-99.02, 19.35],
+            [-99.02, 19.32],
+            [-99.05, 19.32],
+            [-99.05, 19.35]
+          ]
+        ]
+      }
+    }
+  ]
+}

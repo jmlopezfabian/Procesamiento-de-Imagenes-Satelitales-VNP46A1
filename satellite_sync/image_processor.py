@@ -1,6 +1,6 @@
 import numpy as np
 from typing import Tuple, List
-from utils import distancia_puntos, polygon_centroid, es_borde
+from .utils import distancia_puntos, polygon_centroid, es_borde
 
 def aumentar_imagen(image_matrix: np.ndarray, factor_escala: int) -> np.ndarray:
     """Aumenta el tamaño de una imagen por un factor de escala"""
