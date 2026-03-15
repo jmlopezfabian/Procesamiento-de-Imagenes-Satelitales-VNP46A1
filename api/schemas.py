@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from satellite_async.models import MedicionResultado
+
 
 class JobRequest(BaseModel):
     """Body for POST /jobs."""
@@ -32,7 +34,9 @@ class JobResult(BaseModel):
     """Response for GET /jobs/{job_id}/results."""
 
     job_id: str
-    results: list[dict] = Field(..., description="List of measurement records (MedicionResultado as dict)")
+    results: list[MedicionResultado] = Field(
+        ..., description="List of measurement records (MedicionResultado)"
+    )
 
 
 class MunicipiosResponse(BaseModel):

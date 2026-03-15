@@ -7,6 +7,7 @@ from datetime import timedelta
 from fastapi import APIRouter, HTTPException
 
 from satellite_async.config import PIXELES_MUNICIPIOS
+from satellite_async.models import MedicionResultado
 
 from .job_manager import job_store, run_job
 from .schemas import JobRequest, JobResult, JobStatus, MunicipiosResponse
@@ -107,7 +108,8 @@ async def get_job_results(job_id: str):
             status_code=409,
             detail=f"Job failed: {state.error or 'Unknown error'}",
         )
-    return JobResult(job_id=job_id, results=state.results)
+    results = [MedicionResultado.model_validate(r) for r in state.results]
+    return JobResult(job_id=job_id, results=results)
 
 
 @router.delete("/jobs/{job_id}", status_code=204)

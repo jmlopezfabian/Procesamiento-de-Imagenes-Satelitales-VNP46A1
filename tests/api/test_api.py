@@ -122,13 +122,27 @@ class TestGetJobResults:
         state = job_store.create("done-job")
         state.status = "completed"
         state.results = [
-            {"Fecha": "2024-01-01", "Municipio": "iztapalapa", "Media_de_radianza": 10.0},
+            {
+                "Fecha": "2024-01-01",
+                "Municipio": "iztapalapa",
+                "Cantidad_de_pixeles": 100,
+                "Suma_de_radianza": 1000.0,
+                "Media_de_radianza": 10.0,
+                "Desviacion_estandar_de_radianza": 1.0,
+                "Maximo_de_radianza": 12.0,
+                "Minimo_de_radianza": 8.0,
+                "Percentil_25_de_radianza": 9.0,
+                "Percentil_50_de_radianza": 10.0,
+                "Percentil_75_de_radianza": 11.0,
+            },
         ]
         resp = client.get("/jobs/done-job/results")
         assert resp.status_code == 200
         data = resp.json()
         assert data["job_id"] == "done-job"
-        assert data["results"] == state.results
+        assert len(data["results"]) == 1
+        assert data["results"][0]["Municipio"] == "iztapalapa"
+        assert data["results"][0]["Media_de_radianza"] == 10.0
 
 
 # --- DELETE /jobs/{job_id} ---
