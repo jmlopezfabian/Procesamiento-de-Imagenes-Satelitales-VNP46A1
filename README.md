@@ -28,6 +28,10 @@ pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 
+Con esta instalación el paquete queda en el path de Python; **no hace falta usar `PYTHONPATH`** para ejecutar los ejemplos ni la API desde la raíz del proyecto.
+
+Los datos de municipios (`limite-de-las-alcaldias.json`, `municipios_coordenadas_pixeles.json`) vienen incluidos en el paquete; no hace falta configurar rutas. Solo necesitas definir `NASA_API_TOKEN` en tu `.env` (o en el entorno) para la descarga de imágenes.
+
 ---
 
 ## Uso de la API FastAPI (versión async)
@@ -121,33 +125,20 @@ La API usa la implementación **asíncrona** (`satellite_async`) para mejorar el
 
 ---
 
-## Uso del pipeline desde código (opcional)
+## Ejemplos de uso desde código
 
-### Versión síncrona (`satellite_sync`)
+En la carpeta `examples/` hay tres scripts listos para ejecutar desde la raíz del proyecto:
 
-```python
-from satellite_sync import SatelliteProcessor
+- `examples/sync_example.py`: uso básico de la versión síncrona (`SatelliteProcessor`).
+- `examples/async_example.py`: uso básico de la versión asíncrona (`SatelliteImagesAsync`).
+- `examples/api_example.py`: consumo de la API FastAPI (requiere tener levantado `uvicorn api.main:app --reload`).
 
-processor = SatelliteProcessor("Iztapalapa")
-fechas = ["01-01-24", "02-01-24", "03-01-24"]
+Ejemplos de ejecución:
 
-df = processor.run(fechas, "h08v07", show_plots=False)
-print(df)
-```
-
-### Versión asíncrona (`satellite_async`)
-
-```python
-import asyncio
-from satellite_async.satellite_async import SatelliteImagesAsync
-
-async def main():
-  sat = SatelliteImagesAsync("Iztapalapa")
-  fechas = ["01-01-24", "02-01-24"]
-  df = await sat.run(fechas)
-  print(df)
-
-asyncio.run(main())
+```bash
+python examples/sync_example.py
+python examples/async_example.py
+python examples/api_example.py
 ```
 
 ---

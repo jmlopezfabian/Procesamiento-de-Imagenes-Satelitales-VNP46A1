@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vnp46a1-satellite"
+version = "0.1.0"
+description = "Procesamiento y análisis de imágenes satelitales VNP46A1 con versiones síncrona, asíncrona y API FastAPI."
+requires-python = ">=3.8"
+dependencies = []
+
+[tool.setuptools]
+packages = ["vnp46a1_data", "satellite_sync", "satellite_async", "api"]
+
+[tool.setuptools.package-data]
+"vnp46a1_data" = ["*.json"]

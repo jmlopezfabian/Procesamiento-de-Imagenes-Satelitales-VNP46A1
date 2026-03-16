@@ -5,7 +5,7 @@ matplotlib.use("TkAgg")
 import seaborn as sns
 import json
 from utils import polygon_centroid
-from config import RUTA_MUNICIPIOS
+from .config import RUTA_MUNICIPIOS
 import matplotlib.pyplot as plt
 from shapely.geometry import Polygon, MultiPolygon
 from shapely.ops import unary_union

@@ -48,3 +48,6 @@ uvicorn[standard]>=0.22.0
 ipython>=7.20.0
 ipykernel>=6.0.0
 jupyter>=1.0.0
+
+# Proyecto local (instalar paquete del repo)
+.

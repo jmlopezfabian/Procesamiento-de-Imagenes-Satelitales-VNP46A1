@@ -1,13 +1,15 @@
 import os
 import h5py
 from dotenv import load_dotenv
+from importlib import resources
 
 load_dotenv()
 
 # URLs y rutas
 BASE_URL = "https://ladsweb.modaps.eosdis.nasa.gov/archive/allData/5200/VNP46A1/{year}/{day}/"
 IMAGE_PATH = "HDFEOS/GRIDS/VNP_Grid_DNB/Data Fields/DNB_At_Sensor_Radiance_500m"
-RUTA_MUNICIPIOS = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'limite-de-las-alcaldias.json')
+_DATA_ROOT = resources.files("vnp46a1_data")
+RUTA_MUNICIPIOS = str(_DATA_ROOT.joinpath("limite-de-las-alcaldias.json"))
 
 def find_image_path(hdf_file):
     """
