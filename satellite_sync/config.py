@@ -1,5 +1,8 @@
 import os
 import h5py
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # URLs y rutas
 BASE_URL = "https://ladsweb.modaps.eosdis.nasa.gov/archive/allData/5200/VNP46A1/{year}/{day}/"

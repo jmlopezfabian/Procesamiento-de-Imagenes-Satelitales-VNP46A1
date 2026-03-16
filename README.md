@@ -1,205 +1,182 @@
-# Proyecto de Procesamiento de Imágenes Satelitales VNP46A1
+## Procesamiento de Imágenes Satelitales VNP46A1
 
-Este proyecto proporciona herramientas para el procesamiento y análisis de imágenes satelitales VNP46A1 de la NASA, específicamente diseñado para extraer mediciones de radianza por municipio en la Ciudad de México.
+Proyecto para procesar imágenes satelitales VNP46A1 (luminosidad nocturna) y obtener métricas de radianza por municipio.  
+Incluye una **API asíncrona con FastAPI** para lanzar jobs de procesamiento en segundo plano y guardar resultados en Parquet.
 
-## Descripción
+### Componentes principales
 
-El proyecto incluye dos implementaciones principales:
+- `satellite_sync/`: implementación **síncrona** del pipeline de procesamiento.
+- `satellite_async/`: implementación **asíncrona**, utilizada por la API.
+- `api/`: aplicación FastAPI que expone el procesamiento como servicio HTTP.
+- `Data/`: datos auxiliares (coordenadas de municipios, límites geográficos).
 
-- **`satellite_sync/`**: Implementación síncrona para procesamiento de imágenes satelitales
-- **`satellite_async/`**: Implementación asíncrona para procesamiento más eficiente
+Se utilizan **Pydantic v2** y modelos como `MedicionResultado` para validar y serializar los resultados.
 
-![Flujo de procesamiento de píxeles](images/Flujo_pixeles_hueco.PNG)
+---
 
-### Características principales
+## Requisitos e instalación
 
-- Descarga automática de imágenes satelitales VNP46A1 desde la NASA
-- Recorte de imágenes por coordenadas de municipio
-- Extracción de mediciones de radianza
-- Visualización de resultados con gráficos
-- Procesamiento de múltiples fechas
-- Versión asíncrona para mejor rendimiento
-
-## Instalación
-
-### Prerrequisitos
-
-- Python 3.8+
-- pip o conda
-
-### Instalación de dependencias
+- Python 3.11+ (recomendado 3.12)
+- `pip` y `virtualenv` (o equivalente)
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate  # En Windows: .venv\Scripts\activate
+
 pip install -r requirements.txt
+# Para desarrollo y tests:
+pip install -r requirements-dev.txt
 ```
 
-### Dependencias principales
+---
 
-- **numpy**: Procesamiento numérico
-- **pandas**: Manipulación de datos
-- **matplotlib**: Visualización de gráficos
-- **h5py**: Lectura de archivos HDF5
-- **PyQt6**: Interfaz gráfica (opcional)
-- **aiohttp**: Cliente HTTP asíncrono
-- **pydantic**: Validación de datos
+## Uso de la API FastAPI (versión async)
 
-## Estructura del proyecto
+Desde la raíz del proyecto:
 
-```
-├── satellite_sync/          # Implementación síncrona
-│   ├── main.py             # Punto de entrada principal
-│   ├── processor.py        # Clase principal SatelliteProcessor
-│   ├── downloader.py       # Descarga de archivos
-│   ├── image_processor.py  # Procesamiento de imágenes
-│   ├── models.py           # Modelos de datos (Pydantic)
-│   ├── utils.py            # Funciones auxiliares
-│   └── config.py           # Configuración
-├── satellite_async/        # Implementación asíncrona
-│   ├── main.py             # Punto de entrada asíncrono
-│   ├── satellite_async.py  # Clase principal asíncrona
-│   ├── downloader.py       # Descarga asíncrona
-│   ├── processing.py       # Procesamiento asíncrono
-│   ├── models.py           # Modelos de datos
-│   ├── utils.py            # Utilidades
-│   └── config.py           # Configuración
-├── Data/                   # Datos de municipios
-│   ├── municipios_coordenadas_pixeles.json
-│   └── limite-de-las-alcaldias.json
-├── temp/                   # Archivos temporales
-├── requirements.txt        # Dependencias de Python
-└── README.md              # Este archivo
+```bash
+uvicorn api.main:app --reload
 ```
 
-## Uso
+La documentación interactiva estará disponible en:
 
-### Implementación Síncrona
+- `http://localhost:8000/docs`
+
+### Endpoints principales
+
+- **`GET /municipios`**
+  - Devuelve la lista de municipios disponibles para procesamiento.
+  - Respuesta: `{ "municipios": ["iztapalapa", "coyoacan", ...] }`
+
+- **`POST /jobs`**
+  - Crea un job de procesamiento asíncrono.
+  - Cuerpo (`JobRequest`):
+
+    ```json
+    {
+      "municipios": ["iztapalapa"],
+      "fecha_inicio": "2024-01-01",
+      "fecha_fin": "2024-01-03",
+      "chunks": 2
+    }
+    ```
+
+  - Respuesta (`JobStatus`, HTTP 202):
+
+    ```json
+    {
+      "job_id": "uuid-generado",
+      "status": "pending",
+      "progress": null,
+      "created_at": "2024-01-01T00:00:00",
+      "finished_at": null,
+      "error": null,
+      "total_results": 0
+    }
+    ```
+
+- **`GET /jobs/{job_id}`**
+  - Consulta el estado actual del job (`pending`, `running`, `completed`, `failed`).
+  - Respuesta: `JobStatus`.
+
+- **`GET /jobs/{job_id}/results`**
+  - Devuelve los resultados del job una vez completado.
+  - Respuesta (`JobResult`): contiene `results`, una lista de `MedicionResultado` serializados a JSON, por ejemplo:
+
+    ```json
+    {
+      "job_id": "uuid-generado",
+      "results": [
+        {
+          "Fecha": "2024-01-01",
+          "Municipio": "iztapalapa",
+          "Cantidad_de_pixeles": 100,
+          "Suma_de_radianza": 1000.0,
+          "Media_de_radianza": 10.0,
+          "Desviacion_estandar_de_radianza": 1.0,
+          "Maximo_de_radianza": 12.0,
+          "Minimo_de_radianza": 8.0,
+          "Percentil_25_de_radianza": 9.0,
+          "Percentil_50_de_radianza": 10.0,
+          "Percentil_75_de_radianza": 11.0
+        }
+      ]
+    }
+    ```
+
+- **`DELETE /jobs/{job_id}`**
+  - Cancela un job pendiente/en ejecución y lo elimina del store.
+
+---
+
+## Flujo de procesamiento (vista rápida)
+
+1. Para cada fecha y municipio:
+   - Se descarga el archivo HDF5 VNP46A1 correspondiente (NASA).
+   - Se recorta la imagen usando las coordenadas de píxeles del municipio.
+2. Se calculan métricas de radianza (media, suma, percentiles, máximo, mínimo, etc.) y se modelan con `MedicionResultado`.
+3. Los resultados se consolidan en un `DataFrame` de `pandas` y se **guardan como Parquet** para análisis posterior.
+
+La API usa la implementación **asíncrona** (`satellite_async`) para mejorar el rendimiento cuando se procesan muchas fechas o municipios.
+
+---
+
+## Uso del pipeline desde código (opcional)
+
+### Versión síncrona (`satellite_sync`)
 
 ```python
 from satellite_sync import SatelliteProcessor
 
-# Crear instancia del procesador
 processor = SatelliteProcessor("Iztapalapa")
-
-# Lista de fechas a procesar
 fechas = ["01-01-24", "02-01-24", "03-01-24"]
 
-# Procesar múltiples fechas
-df = processor.run(fechas, "h08v07", show_plots=True)
-
-if not df.empty:
-    print("Resultados obtenidos:")
-    print(df)
-```
-
-### Implementación Asíncrona
-
-```python
-from satellite_async import SatelliteImagesAsync
-import asyncio
-
-# Crear instancia asíncrona
-municipio = "Iztapalapa"
-fechas = ["01-01-24", "02-01-24"]
-sat = SatelliteImagesAsync(municipio)
-
-# Ejecutar procesamiento asíncrono
-df = asyncio.run(sat.run(fechas))
+df = processor.run(fechas, "h08v07", show_plots=False)
 print(df)
 ```
 
-### Ejecutar desde línea de comandos
+### Versión asíncrona (`satellite_async`)
 
-```bash
-# Versión síncrona
-cd satellite_sync
-python main.py
+```python
+import asyncio
+from satellite_async.satellite_async import SatelliteImagesAsync
 
-# Versión asíncrona
-cd satellite_async
-python main.py
+async def main():
+  sat = SatelliteImagesAsync("Iztapalapa")
+  fechas = ["01-01-24", "02-01-24"]
+  df = await sat.run(fechas)
+  print(df)
+
+asyncio.run(main())
 ```
 
-## Funcionalidades
+---
 
-### Procesamiento de Imágenes
+## Ejecución de tests
 
-- **Recorte automático**: Las imágenes se recortan automáticamente según las coordenadas del municipio
-- **Normalización**: Procesamiento de bordes y completado de datos faltantes
-- **Extracción de píxeles**: Obtención de valores de radianza por coordenada
+El proyecto usa `pytest` y tests para:
+- Lógica síncrona y asíncrona.
+- Descarga de archivos.
+- API FastAPI (endpoints y manejo de jobs).
 
-### Análisis de Datos
+Desde la raíz del proyecto, con el entorno virtual activado:
 
-- **Mediciones de radianza**: Extracción de valores de luminosidad nocturna
-- **Estadísticas**: Cálculo de estadísticas descriptivas por fecha
-- **Visualización**: Generación automática de gráficos y mapas
+```bash
+python -m pytest          # Ejecuta toda la batería de tests
+python -m pytest tests/api  # Solo tests de la API
+```
 
-### Gestión de Datos
-
-- **Descarga automática**: Obtención de archivos desde servidores de la NASA
-- **Cache local**: Almacenamiento temporal de archivos descargados
-- **Validación**: Verificación de integridad de datos con Pydantic
-
-## Configuración
-
-### Parámetros principales
-
-- **Municipio**: Nombre del municipio a procesar (ej: "Iztapalapa")
-- **Fechas**: Lista de fechas en formato "DD-MM-YY"
-- **Tile**: Identificador de tile satelital (ej: "h08v07")
-- **Mostrar gráficos**: Opción para visualizar resultados
-
-### Archivos de configuración
-
-- `satellite_sync/config.py`: Configuración para versión síncrona
-- `satellite_async/config.py`: Configuración para versión asíncrona
-
-## Resultados
-
-El sistema genera:
-
-1. **DataFrame con mediciones**: Contiene valores de radianza por fecha
-2. **Gráficos de visualización**: Mapas de calor y gráficos temporales
-3. **Estadísticas**: Resúmenes estadísticos de los datos procesados
-
-## Desarrollo
-
-### Agregar nuevos municipios
-
-1. Actualizar `Data/municipios_coordenadas_pixeles.json` con las coordenadas del nuevo municipio
-2. Verificar que las coordenadas estén en el formato correcto
-
-### Extender funcionalidades
-
-- Los módulos están diseñados de forma modular para facilitar extensiones
-- Usar los modelos Pydantic para validación de datos
-- Seguir el patrón establecido en los procesadores existentes
+---
 
 ## Notas
 
-- Las imágenes VNP46A1 contienen datos de luminosidad nocturna
-- El procesamiento puede tomar tiempo dependiendo del número de fechas
-- Se recomienda usar la versión asíncrona para grandes volúmenes de datos
-- Los archivos temporales se almacenan en el directorio `temp/`
+- Se usa **Pydantic v2** (`model_dump`, `model_validate`) para validación y serialización de datos.
+- Los resultados de mediciones se devuelven tipados como `MedicionResultado` en la API.
+- Los archivos temporales y resultados intermedios se gestionan dentro del proyecto (por ejemplo, directorio `temp/`).
 
-## Contribuciones
+### Autores y coautores
 
-Para contribuir al proyecto:
+- Proyecto desarrollado como trabajo terminal en ESCOM.
+- Coautora: [Carolina Corral](https://github.com/carolinacorral).
 
-1. Fork el repositorio
-2. Crea una rama para tu feature (`git checkout -b feature/nueva-funcionalidad`)
-3. Commit tus cambios (`git commit -am 'Agregar nueva funcionalidad'`)
-4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
-5. Crea un Pull Request
-
-## Licencia
-
-Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
-
-## Autores
-
-- Desarrollado para el trabajo terminal de ESCOM
-- Basado en datos de la NASA VNP46A1
-
-## Contacto
-
-Para preguntas o soporte, por favor abrir un issue en el repositorio. 
+Para dudas o contribuciones, abre un issue o un Pull Request en el repositorio.
