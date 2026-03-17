@@ -28,11 +28,7 @@ pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 
-Con esta instalación el paquete queda en el path de Python; **no hace falta usar `PYTHONPATH`** para ejecutar los ejemplos ni la API desde la raíz del proyecto.
 
-Los datos de municipios (`limite-de-las-alcaldias.json`, `municipios_coordenadas_pixeles.json`) vienen incluidos en el paquete; no hace falta configurar rutas. Solo necesitas definir `NASA_API_TOKEN` en tu `.env` (o en el entorno) para la descarga de imágenes.
-
----
 
 ## Uso de la API FastAPI (versión async)
 
@@ -114,6 +110,8 @@ La documentación interactiva estará disponible en:
 ---
 
 ## Flujo de procesamiento (vista rápida)
+
+![Flujo de píxeles y huecos](images/Flujo_pixeles_hueco.PNG)
 
 1. Para cada fecha y municipio:
    - Se descarga el archivo HDF5 VNP46A1 correspondiente (NASA).
