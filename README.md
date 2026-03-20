@@ -35,12 +35,18 @@ pip install -r requirements-dev.txt
 Desde la raíz del proyecto:
 
 ```bash
+# Opción 1: Con venv activado
+source .venv/bin/activate  # o .venv\Scripts\activate en Windows
 uvicorn api.main:app --reload
+
+# Opción 2: Sin activar venv (usa .venv automáticamente)
+./run.sh
 ```
 
-La documentación interactiva estará disponible en:
+La documentación interactiva y la interfaz web estarán en:
 
-- `http://localhost:8000/docs`
+- `http://localhost:8000` – Interfaz web para usar los endpoints
+- `http://localhost:8000/docs` – Documentación Swagger
 
 ### Endpoints principales
 
