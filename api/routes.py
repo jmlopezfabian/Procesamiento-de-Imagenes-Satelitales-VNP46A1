@@ -8,9 +8,17 @@ from fastapi import APIRouter, HTTPException
 
 from satellite_async.config import PIXELES_MUNICIPIOS
 from satellite_async.models import MedicionResultado
+from satellite_async.utils import normalize_municipio
 
-from .job_manager import job_store, run_job
-from .schemas import JobRequest, JobResult, JobStatus, MunicipiosResponse
+from .job_manager import job_store, run_job, run_matriz_job
+from .schemas import (
+    JobRequest,
+    JobResult,
+    JobStatus,
+    MatrizRequest,
+    MatrizResult,
+    MunicipiosResponse,
+)
 
 router = APIRouter()
 
@@ -125,3 +133,71 @@ async def cancel_job(job_id: str):
         except asyncio.CancelledError:
             pass
     job_store.remove(job_id)
+
+
+# --- Matriz endpoints ---
+
+
+@router.post("/matriz", response_model=JobStatus, status_code=202)
+async def create_matriz_job(body: MatrizRequest):
+    """Create a matriz extraction job. Returns immediately with job_id; poll GET /matriz/{job_id} for status."""
+    available = _get_available_municipios()
+    normalized = normalize_municipio(body.municipio)
+    if normalized not in available:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Municipio '{body.municipio}' not available. Use GET /municipios for the list.",
+        )
+
+    job_id = str(uuid.uuid4())
+    state = job_store.create(job_id)
+    task = asyncio.create_task(run_matriz_job(job_id, body.municipio, body.fecha))
+    job_store.set_task(job_id, task)
+
+    return JobStatus(
+        job_id=job_id,
+        status=state.status,
+        progress=state.progress,
+        created_at=state.created_at,
+        finished_at=state.finished_at,
+        error=state.error,
+        total_results=state.total_results,
+    )
+
+
+@router.get("/matriz/{job_id}", response_model=JobStatus)
+async def get_matriz_job_status(job_id: str):
+    """Get current status and progress of a matriz job."""
+    state = job_store.get(job_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return JobStatus(
+        job_id=state.job_id,
+        status=state.status,
+        progress=state.progress,
+        created_at=state.created_at,
+        finished_at=state.finished_at,
+        error=state.error,
+        total_results=state.total_results,
+    )
+
+
+@router.get("/matriz/{job_id}/resultado", response_model=MatrizResult)
+async def get_matriz_result(job_id: str):
+    """Get radiance matrix and municipality mask. Returns 409 if job is not yet completed."""
+    state = job_store.get(job_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if state.status not in ("completed", "failed"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Job not finished (status: {state.status}). Poll GET /matriz/{job_id}.",
+        )
+    if state.status == "failed":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Job failed: {state.error or 'Unknown error'}",
+        )
+    if not state.results:
+        raise HTTPException(status_code=500, detail="No result data")
+    return MatrizResult.model_validate(state.results[0])

@@ -158,3 +158,89 @@ class TestDeleteJob:
         resp = client.delete("/jobs/to-delete")
         assert resp.status_code == 204
         assert job_store.get("to-delete") is None
+
+
+# --- POST /matriz ---
+
+
+class TestPostMatriz:
+    def test_returns_202_and_job_id_when_valid(self, client):
+        with patch("api.routes._get_available_municipios", return_value=["iztapalapa"]):
+            with patch("api.routes.run_matriz_job", new_callable=AsyncMock):
+                resp = client.post(
+                    "/matriz",
+                    json={"municipio": "Iztapalapa", "fecha": "2024-01-15"},
+                )
+        assert resp.status_code == 202
+        data = resp.json()
+        assert "job_id" in data
+        assert data["status"] == "pending"
+
+    def test_returns_400_when_municipio_invalid(self, client):
+        with patch("api.routes._get_available_municipios", return_value=["iztapalapa"]):
+            resp = client.post(
+                "/matriz",
+                json={"municipio": "unknown", "fecha": "2024-01-15"},
+            )
+        assert resp.status_code == 400
+        assert "not available" in resp.json().get("detail", "")
+
+
+# --- GET /matriz/{job_id} ---
+
+
+class TestGetMatrizStatus:
+    def test_returns_404_when_job_unknown(self, client):
+        resp = client.get("/matriz/00000000-0000-0000-0000-000000000000")
+        assert resp.status_code == 404
+
+    def test_returns_200_with_status_when_job_exists(self, client):
+        state = job_store.create("matriz-job-123")
+        state.status = "completed"
+        state.total_results = 1
+        resp = client.get("/matriz/matriz-job-123")
+        assert resp.status_code == 200
+        assert resp.json()["job_id"] == "matriz-job-123"
+        assert resp.json()["status"] == "completed"
+
+
+# --- GET /matriz/{job_id}/resultado ---
+
+
+class TestGetMatrizResult:
+    def test_returns_404_when_job_unknown(self, client):
+        resp = client.get("/matriz/00000000-0000-0000-0000-000000000000/resultado")
+        assert resp.status_code == 404
+
+    def test_returns_409_when_job_not_finished(self, client):
+        state = job_store.create("matriz-running")
+        state.status = "running"
+        resp = client.get("/matriz/matriz-running/resultado")
+        assert resp.status_code == 409
+        assert "not finished" in resp.json().get("detail", "").lower()
+
+    def test_returns_200_with_matrices_when_completed(self, client):
+        state = job_store.create("matriz-done")
+        state.status = "completed"
+        state.results = [
+            {
+                "job_id": "matriz-done",
+                "municipio": "iztapalapa",
+                "fecha": "2024-01-15",
+                "bbox": {"min_x": 0, "max_x": 10, "min_y": 0, "max_y": 10},
+                "rows": 11,
+                "cols": 11,
+                "radiance_matrix": [[0.1] * 11 for _ in range(11)],
+                "municipality_mask": [[1 if i == j else 0 for j in range(11)] for i in range(11)],
+            }
+        ]
+        resp = client.get("/matriz/matriz-done/resultado")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["job_id"] == "matriz-done"
+        assert data["municipio"] == "iztapalapa"
+        assert data["fecha"] == "2024-01-15"
+        assert data["rows"] == 11
+        assert data["cols"] == 11
+        assert len(data["radiance_matrix"]) == 11
+        assert len(data["municipality_mask"]) == 11

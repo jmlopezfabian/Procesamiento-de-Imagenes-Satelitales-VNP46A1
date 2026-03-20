@@ -1,7 +1,10 @@
 import os
+from urllib.parse import urljoin
+
 import aiohttp
 import asyncio
 from bs4 import BeautifulSoup
+
 from .config import BASE_URL, HEADERS
 
 async def find_file(session, year, day, cuadrante):
@@ -32,51 +35,57 @@ async def find_file(session, year, day, cuadrante):
 
 async def download_file(session, url, path, max_retries=3, delay=2):
     """
-    Descarga un archivo con sistema de retry
-    
-    Args:
-        session: Sesión de aiohttp
-        url: URL del archivo a descargar
-        path: Ruta donde guardar el archivo
-        max_retries: Número máximo de intentos (default: 3)
-        delay: Delay entre intentos en segundos (default: 2)
+    Descarga un archivo con sistema de retry.
+    Sigue redirects manualmente preservando el header Authorization, ya que aiohttp
+    lo elimina en redirects a otro host (p.ej. Earthdata) y LAADS requiere el token.
     """
     for attempt in range(max_retries):
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            
-            # Configurar timeout más largo para archivos grandes
+
             timeout = aiohttp.ClientTimeout(total=300, connect=60)
-            
-            async with session.get(url, headers=HEADERS, timeout=timeout) as resp:
-                if resp.status == 200:
-                    print(f"Descargando: {url} (intento {attempt + 1}/{max_retries})")
-                    total_size = 0
-                    with open(path, "wb") as f:
-                        while True:
-                            chunk = await resp.content.read(8192)
-                            if not chunk:
-                                break
-                            f.write(chunk)
-                            total_size += len(chunk)
-                    
-                    print(f"Descarga completada: {path} ({total_size} bytes)")
-                    return path
-                else:
+            current_url = url
+            max_redirects = 10
+
+            for _ in range(max_redirects):
+                async with session.get(
+                    current_url, headers=HEADERS, timeout=timeout, allow_redirects=False
+                ) as resp:
+                    if resp.status in (301, 302, 303, 307, 308):
+                        location = resp.headers.get("Location")
+                        if not location:
+                            break
+                        current_url = (
+                            location
+                            if location.startswith("http")
+                            else urljoin(current_url, location)
+                        )
+                        continue
+                    if resp.status == 200:
+                        print(f"Descargando: {url} (intento {attempt + 1}/{max_retries})")
+                        total_size = 0
+                        with open(path, "wb") as f:
+                            while True:
+                                chunk = await resp.content.read(8192)
+                                if not chunk:
+                                    break
+                                f.write(chunk)
+                                total_size += len(chunk)
+                        print(f"Descarga completada: {path} ({total_size} bytes)")
+                        return path
                     print(f"Fallo la descarga del archivo: {url} - Status: {resp.status} (intento {attempt + 1}/{max_retries})")
-                    # Intentar leer el cuerpo de la respuesta para más información
                     try:
                         error_text = await resp.text()
                         print(f"Respuesta del servidor: {error_text[:200]}")
-                    except:
+                    except Exception:
                         pass
-                    
-                    if attempt < max_retries - 1:
-                        print(f"Reintentando en {delay} segundos...")
-                        await asyncio.sleep(delay)
-                        continue
-                    else:
-                        return None
+                    break
+
+            if attempt < max_retries - 1:
+                print(f"Reintentando en {delay} segundos...")
+                await asyncio.sleep(delay)
+                continue
+            return None
                         
         except aiohttp.ClientError as e:
             print(f"Error de cliente HTTP al descargar {url}: {e} (intento {attempt + 1}/{max_retries})")

@@ -43,3 +43,36 @@ class MunicipiosResponse(BaseModel):
     """Response for GET /municipios."""
 
     municipios: list[str] = Field(..., description="Available municipality names")
+
+
+class MatrizRequest(BaseModel):
+    """Body for POST /matriz."""
+
+    municipio: str = Field(..., description="Municipality name")
+    fecha: date = Field(..., description="Date for the radiance matrix")
+
+
+class BboxSchema(BaseModel):
+    """Bounding box of the cropped matrix."""
+
+    min_x: int = Field(..., description="Minimum x coordinate")
+    max_x: int = Field(..., description="Maximum x coordinate")
+    min_y: int = Field(..., description="Minimum y coordinate")
+    max_y: int = Field(..., description="Maximum y coordinate")
+
+
+class MatrizResult(BaseModel):
+    """Response for GET /matriz/{job_id}/resultado."""
+
+    job_id: str = Field(..., description="Job identifier")
+    municipio: str = Field(..., description="Municipality name")
+    fecha: date = Field(..., description="Date of the data")
+    bbox: BboxSchema = Field(..., description="Bounding box in the original tile")
+    rows: int = Field(..., description="Number of rows in the matrices")
+    cols: int = Field(..., description="Number of columns in the matrices")
+    radiance_matrix: list[list[float | None]] = Field(
+        ..., description="Radiance values; NaN/Inf as null"
+    )
+    municipality_mask: list[list[int]] = Field(
+        ..., description="Binary mask: 1=municipality pixel, 0=otherwise"
+    )
