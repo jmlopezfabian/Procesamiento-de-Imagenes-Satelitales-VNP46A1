@@ -2,7 +2,7 @@
 import asyncio
 import json
 import uuid
-from datetime import timedelta
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException
 
@@ -10,8 +10,11 @@ from satellite_async.config import PIXELES_MUNICIPIOS
 from satellite_async.models import MedicionResultado
 from satellite_async.utils import normalize_municipio
 
+from .agent import get_agent, get_last_tool_results
 from .job_manager import job_store, run_job, run_matriz_job
 from .schemas import (
+    ChatRequest,
+    ChatResponse,
     JobRequest,
     JobResult,
     JobStatus,
@@ -179,6 +182,68 @@ async def get_matriz_job_status(job_id: str):
         finished_at=state.finished_at,
         error=state.error,
         total_results=state.total_results,
+    )
+
+
+def _history_to_messages(history: list[dict]) -> list:
+    """Convert simplified frontend history to PydanticAI ModelMessage list."""
+    from pydantic_ai.messages import (
+        ModelRequest,
+        ModelResponse,
+        RequestUsage,
+        TextPart,
+        UserPromptPart,
+    )
+
+    now = datetime.now(timezone.utc)
+    messages = []
+    for h in history:
+        role = (h.get("role") or "").lower()
+        content = h.get("content") or ""
+        if not content:
+            continue
+        if role == "user":
+            messages.append(
+                ModelRequest(
+                    parts=[UserPromptPart(content=content, timestamp=now)],
+                    timestamp=now,
+                )
+            )
+        elif role in ("model", "assistant"):
+            messages.append(
+                ModelResponse(
+                    parts=[TextPart(content=content)],
+                    usage=RequestUsage(),
+                    timestamp=now,
+                )
+            )
+    return messages
+
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat(body: ChatRequest):
+    """Run the PydanticAI agent and return response with optional heatmap/mediciones."""
+    print(f"[Chat] Received message: {body.message[:80]!r}{'...' if len(body.message) > 80 else ''}")
+    print(f"[Chat] History: {len(body.history)} messages")
+    agent = get_agent()
+    message_history = _history_to_messages(body.history) if body.history else None
+
+    try:
+        print("[Chat] Running agent.run()...")
+        result = await agent.run(body.message, message_history=message_history or None)
+        print("[Chat] Agent completed successfully")
+    except Exception as e:
+        print(f"[Chat] Agent error: {e}")
+        raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")
+
+    response_text = str(result.output) if result.output is not None else ""
+    heatmap_data, mediciones = get_last_tool_results()
+    print(f"[Chat] Response: {len(response_text)} chars, heatmap={heatmap_data is not None}, mediciones={mediciones is not None} ({len(mediciones or [])} rows)")
+
+    return ChatResponse(
+        response=response_text,
+        heatmap_data=heatmap_data,
+        mediciones=mediciones,
     )
 
 

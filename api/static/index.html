@@ -16,13 +16,34 @@
       --error: #f85149;
     }
     * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
     body {
       font-family: 'Segoe UI', system-ui, sans-serif;
       background: var(--bg);
       color: var(--text);
-      margin: 0;
-      padding: 2rem;
+      padding: 0;
       line-height: 1.5;
+      display: flex;
+      flex-direction: column;
+    }
+    .app-header {
+      flex-shrink: 0;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+    .app-content {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 1.5rem;
     }
     h1 { font-size: 1.5rem; margin: 0 0 1.5rem 0; }
     h2 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem 0; color: var(--accent); }
@@ -38,7 +59,13 @@
     .tabs button.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
     .tabs button:hover:not(.active) { background: var(--border); }
     .panel { display: none; }
-    .panel.active { display: block; }
+    .panel.active {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+    }
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -102,15 +129,78 @@
     }
     details { margin-top: 1rem; }
     details summary { cursor: pointer; color: var(--accent); }
+    .chat-messages {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      margin: 1rem 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .chat-bubble {
+      max-width: 90%;
+      padding: 1rem 1.25rem;
+      border-radius: 14px;
+      line-height: 1.5;
+      font-size: 1.05rem;
+    }
+    .chat-bubble.user {
+      align-self: flex-end;
+      background: var(--accent);
+      color: var(--bg);
+    }
+    .chat-bubble.assistant {
+      align-self: flex-start;
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+    .chat-bubble .bubble-content { white-space: pre-wrap; word-break: break-word; }
+    .chat-bubble .bubble-attachment { margin-top: 0.75rem; }
+    .chat-input-wrap {
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-end;
+    }
+    .chat-input-wrap textarea {
+      flex: 1;
+      resize: vertical;
+      min-height: 80px;
+      font-size: 1.05rem;
+    }
+    .chat-input-wrap button { flex-shrink: 0; }
+    .mediciones-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .mediciones-table th, .mediciones-table td {
+      border: 1px solid var(--border);
+      padding: 0.4rem 0.6rem;
+      text-align: left;
+    }
+    .mediciones-table th { background: var(--bg); color: var(--muted); }
+    .chat-panel {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .chat-panel .chat-messages { flex: 1; }
+    .chat-panel .chat-input-wrap { flex-shrink: 0; margin-top: 0.5rem; }
+    .chat-panel .chat-input-wrap button { padding: 0.75rem 1.5rem; font-size: 1rem; }
   </style>
 </head>
 <body>
-  <h1>VNP46A1 Satellite API</h1>
-  <div class="tabs">
-    <button class="active" data-tab="jobs">Mediciones (jobs)</button>
-    <button data-tab="matriz">Matriz radianza</button>
-  </div>
-
+  <header class="app-header">
+    <h1 style="margin:0; font-size: 1.25rem;">VNP46A1 Satellite API</h1>
+    <div class="tabs" style="margin:0;">
+      <button class="active" data-tab="jobs">Mediciones (jobs)</button>
+      <button data-tab="matriz">Matriz radianza</button>
+      <button data-tab="chat">Asistente IA</button>
+    </div>
+  </header>
+  <main class="app-content">
   <div id="jobs" class="panel active card">
     <h2>Procesar mediciones</h2>
     <p class="msg">Crea un job para obtener estadísticas de radianza por municipio en un rango de fechas.</p>
@@ -131,6 +221,16 @@
     <div id="results" style="margin-top:1rem;"></div>
   </div>
 
+  <div id="chat" class="panel card chat-panel">
+    <h2>Asistente IA</h2>
+    <p class="msg">Pregunta sobre radianza nocturna por municipio y fecha. Ej: "¿Cómo se vio Iztapalapa el 1 de enero de 2024?"</p>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input-wrap">
+      <textarea id="chatInput" rows="3" placeholder="Escribe tu pregunta..."></textarea>
+      <button id="btnSendChat">Enviar</button>
+    </div>
+  </div>
+
   <div id="matriz" class="panel card">
     <h2>Matriz de radianza</h2>
     <p class="msg">Obtén la matriz de radianza y la máscara binaria del municipio para una fecha.</p>
@@ -148,6 +248,7 @@
     <div id="matrizStatus" class="status" style="display:none;"></div>
     <div id="matrizResult" style="margin-top:1rem;"></div>
   </div>
+  </main>
 
   <script>
     const API = '';
@@ -324,6 +425,87 @@
     }
 
     loadMunicipios().catch(e => alert('No se pudo cargar municipios: ' + e.message));
+
+    // Chat tab
+    const chatMessages = document.getElementById('chatMessages');
+    const chatInput = document.getElementById('chatInput');
+    const btnSendChat = document.getElementById('btnSendChat');
+    let chatHistory = [];
+
+    function appendChatBubble(role, content, attachmentEl = null) {
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble ' + role;
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'bubble-content';
+      contentDiv.textContent = content;
+      bubble.appendChild(contentDiv);
+      if (attachmentEl) {
+        const wrap = document.createElement('div');
+        wrap.className = 'bubble-attachment';
+        wrap.appendChild(attachmentEl);
+        bubble.appendChild(wrap);
+      }
+      chatMessages.appendChild(bubble);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function renderMedicionesTable(mediciones) {
+      const table = document.createElement('table');
+      table.className = 'mediciones-table';
+      if (!mediciones || !mediciones.length) return table;
+      const keys = Object.keys(mediciones[0]);
+      const thead = document.createElement('thead');
+      thead.innerHTML = '<tr>' + keys.map(k => '<th>' + k + '</th>').join('') + '</tr>';
+      table.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      mediciones.forEach(m => {
+        const row = document.createElement('tr');
+        row.innerHTML = keys.map(k => '<td>' + (m[k] != null ? String(m[k]) : '') + '</td>').join('');
+        tbody.appendChild(row);
+      });
+      table.appendChild(tbody);
+      return table;
+    }
+
+    async function sendChat() {
+      const msg = chatInput.value.trim();
+      if (!msg) return;
+      chatInput.value = '';
+      appendChatBubble('user', msg);
+      chatHistory.push({ role: 'user', content: msg });
+
+      btnSendChat.disabled = true;
+      try {
+        const resp = await api('/chat', {
+          method: 'POST',
+          body: JSON.stringify({ message: msg, history: chatHistory.slice(0, -1) }),
+        });
+        chatHistory.push({ role: 'model', content: resp.response });
+
+        let attachmentEl = null;
+        const parts = [];
+        if (resp.heatmap_data && resp.heatmap_data.radiance_matrix) {
+          const wrap = document.createElement('div');
+          wrap.className = 'heatmap-wrap';
+          renderHeatmap(resp.heatmap_data.radiance_matrix, resp.heatmap_data.municipality_mask, wrap);
+          parts.push(wrap);
+        }
+        if (resp.mediciones && resp.mediciones.length) {
+          parts.push(renderMedicionesTable(resp.mediciones));
+        }
+        if (parts.length) attachmentEl = parts.length === 1 ? parts[0] : (() => { const c = document.createElement('div'); parts.forEach(p => c.appendChild(p)); return c; })();
+
+        appendChatBubble('assistant', resp.response, attachmentEl);
+      } catch (e) {
+        appendChatBubble('assistant', 'Error: ' + e.message);
+        chatHistory.push({ role: 'model', content: 'Error: ' + e.message });
+      } finally {
+        btnSendChat.disabled = false;
+      }
+    }
+
+    btnSendChat.onclick = () => sendChat();
+    chatInput.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } };
   </script>
 </body>
 </html>

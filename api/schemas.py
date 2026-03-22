@@ -76,3 +76,18 @@ class MatrizResult(BaseModel):
     municipality_mask: list[list[int]] = Field(
         ..., description="Binary mask: 1=municipality pixel, 0=otherwise"
     )
+
+
+class ChatRequest(BaseModel):
+    """Body for POST /chat."""
+
+    message: str = Field(..., description="User message")
+    history: list[dict] = Field(default_factory=list, description="Message history")
+
+
+class ChatResponse(BaseModel):
+    """Response for POST /chat."""
+
+    response: str = Field(..., description="Agent response text")
+    heatmap_data: dict | None = Field(None, description="Radiance matrix data for heatmap")
+    mediciones: list[dict] | None = Field(None, description="Measurement records for table")
