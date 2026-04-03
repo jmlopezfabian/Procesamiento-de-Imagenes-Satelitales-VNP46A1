@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Procesamiento de Imágenes Satelitales VNP46A1 para Estimación de Luminosidad Nocturna Municipal</title>
+  <link rel="stylesheet" href="style.css">
+
+  <!-- KaTeX -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.body, {
+      delimiters: [
+        {left: '$$', right: '$$', display: true},
+        {left: '$', right: '$', display: false}
+      ]
+    });">
+  </script>
+</head>
+<body>
+
+<div class="page-wrap">
+
+  <!-- ── Tabla de contenidos lateral ── -->
+  <nav class="toc-sidebar" aria-label="Tabla de contenidos">
+    <h2>Contenido</h2>
+    <ol>
+      <li><a href="#introduccion">Introducción</a></li>
+      <li><a href="#fuente-de-datos">Fuente de datos</a>
+        <ol style="font-size:0.95em;margin-top:0.3rem">
+          <li><a href="#vnp46a1">Conjunto VNP46A1</a></li>
+          <li><a href="#delimitacion">Delimitación municipal</a></li>
+        </ol>
+      </li>
+      <li><a href="#metodologia">Metodología de procesamiento</a>
+        <ol style="font-size:0.95em;margin-top:0.3rem">
+          <li><a href="#extraccion">Extracción de archivos</a></li>
+          <li><a href="#coordenadas">Coordenadas de la imagen</a></li>
+          <li><a href="#bordes">Bordes del municipio</a></li>
+          <li><a href="#recorte">Recorte y redimensión</a></li>
+          <li><a href="#cierre">Cierre de bordes</a></li>
+          <li><a href="#pixeles">Extracción de píxeles</a></li>
+          <li><a href="#huerfanos">Píxeles huérfanos</a></li>
+          <li><a href="#estadisticas">Métricas estadísticas</a></li>
+        </ol>
+      </li>
+      <li><a href="#optimizacion">Optimizaciones</a>
+        <ol style="font-size:0.95em;margin-top:0.3rem">
+          <li><a href="#precomputo">Precomputo de coordenadas</a></li>
+          <li><a href="#asincrono">Procesamiento asíncrono</a></li>
+          <li><a href="#cuadrantes">Agrupación por cuadrante</a></li>
+        </ol>
+      </li>
+      <li><a href="#conjunto-de-datos">Conjunto de datos resultante</a></li>
+      <li><a href="#referencias">Referencias</a></li>
+    </ol>
+  </nav>
+
+  <!-- ── Cuerpo del artículo ── -->
+  <article>
+
+    <!-- Encabezado -->
+    <header class="paper-header">
+      <h1>Procesamiento de Imágenes Satelitales VNP46A1 para la Estimación de Luminosidad Nocturna a Nivel Municipal</h1>
+      <div class="paper-meta">
+        <span>Jesús Manuel López Fabián</span>
+        <span>Corral Avila Carolina</span>
+        <span>ESCOM — Instituto Politécnico Nacional</span>
+        <span>Ciudad de México, 2025</span>
+      </div>
+    </header>
+
+    <!-- Abstract -->
+    <div class="abstract">
+      <strong>Resumen</strong>
+      Se presenta la metodología computacional desarrollada para extraer, georreferenciar y agregar datos de luminosidad nocturna del producto satelital VNP46A1 (Black Marble) de la NASA a nivel de municipio. El proceso transforma imágenes diarias en formato HDF5, descargadas del servidor LAADS DAAC, en un conjunto de estadísticas descriptivas de radianza por municipio y fecha. La metodología comprende la transformación de coordenadas geográficas al sistema de referencia de la imagen, el cierre de bordes del polígono municipal mediante interpolación lineal, la identificación de píxeles interiores mediante búsqueda en amplitud, y la detección de regiones desconectadas mediante una búsqueda inversa desde los bordes de la imagen. Se describen también las optimizaciones implementadas —precomputo de coordenadas y procesamiento asíncrono por lotes— que redujeron el tiempo de procesamiento en un factor significativo.
+    </div>
+
+    <!-- ─────────────────────────────────────── -->
+    <h2 class="section" id="introduccion">Introducción</h2>
+
+    <p>El Producto Interno Bruto (PIB) es el principal indicador de la salud económica de una población. Su estimación a niveles de granularidad menores al nacional —como el nivel municipal en México— es una tarea compleja, debido a que el INEGI no publica el PIB municipal (PIBM) de manera periódica, lo que limita la evaluación de políticas económicas y el análisis a escala subnacional.</p>
+
+    <p>Una aproximación ampliamente estudiada consiste en utilizar la luminosidad nocturna captada por satélite (NTL, por sus siglas en inglés) como variable <em>proxy</em> del PIB. Esta relación fue establecida formalmente por Henderson <em>et al.</em> [1], quienes demostraron que existe una elasticidad constante entre la intensidad de la luz nocturna y el PIB, tanto en niveles como en cambios. La NTL ofrece dos ventajas fundamentales: captura la actividad económica tanto formal como informal, y está disponible de forma abierta para casi cualquier región geográfica y en frecuencia diaria.</p>
+
+    <p>El uso de la NTL como proxy requiere, como paso previo, un proceso de procesamiento de imágenes que permita agregar los valores de radianza de los píxeles satelitales correspondientes a cada municipio. Este documento describe en detalle dicho proceso, desarrollado para las 16 alcaldías de la Ciudad de México, Oaxaca de Juárez (Oaxaca) y Monterrey (Nuevo León), para el período 2012–2024, utilizando el producto VNP46A1 del sensor VIIRS a bordo del satélite Suomi-NPP.</p>
+
+    <!-- ─────────────────────────────────────── -->
+    <h2 class="section" id="fuente-de-datos">Fuente de datos</h2>
+
+    <h3 class="subsection" id="vnp46a1">Conjunto de datos VNP46A1</h3>
+
+    <p>El sensor <em>Day/Night Band</em> del instrumento VIIRS (VIIRS-DNB), a bordo de las plataformas satelitales Suomi National Polar-orbiting Partnership (S-NPP) y el Joint Polar Satellite System, orbita la Tierra diariamente. La NASA ha desarrollado a partir de este sensor el conjunto <em>Black Marble</em> (VNP46/VJ146), considerado el estado del arte para investigación con datos de luminosidad nocturna [2].</p>
+
+    <p>El producto VNP46A1 corresponde al nivel diario de este conjunto, con el nombre completo <em>VIIRS/NPP Daily Gridded Day Night Band 15 arc-second Linear Lat Lon Grid Night</em>. Tiene una resolución espacial de 15 arco-segundos (aproximadamente 500 m) y está disponible desde enero de 2012. Los archivos se distribuyen en formato HDF5 y se organizan en una cuadrícula de 460 cuadrantes de 10° × 10°. Cada cuadrante se identifica mediante la notación $hXXvYY$; el cuadrante que cubre la Ciudad de México es el $h08v07$.</p>
+
+    <p>Dentro de cada archivo HDF5, los datos de radianza nocturna se encuentran en la ruta:</p>
+
+    <pre style="background:#f5f5f0;border:1px solid #ddd;border-radius:4px;padding:0.75rem 1rem;font-size:0.82rem;overflow-x:auto"><code>HDFEOS/GRIDS/VNP_Grid_DNB/Data Fields/DNB_At_Sensor_Radiance_500m</code></pre>
+
+    <p>Esta matriz tiene dimensiones $2400 \times 2400$ píxeles, donde cada elemento $I_{j,k}$ indica la intensidad de luminosidad en la posición $(j, k)$ del cuadrante. El nombre de cada archivo sigue la nomenclatura:</p>
+
+    <p style="text-align:center;font-family:monospace;font-size:0.85rem">VNP46A1.AYYYYDDD.hXXvYY.CCC.YYYYDDDHHMM<wbr>SS.h5</p>
+
+    <p>donde <code>AYYYYDDD</code> indica el año y día del año de adquisición (fecha juliana), <code>hXXvYY</code> el identificador del cuadrante, <code>CCC</code> la versión de la colección, y <code>h5</code> el formato HDF5. Los archivos se obtienen del servidor LAADS DAAC (<em>Level-1 and Atmosphere Archive and Distribution System Distributed Active Archive Center</em>) de la NASA [3].</p>
+
+    <h3 class="subsection" id="delimitacion">Delimitación de municipios</h3>
+
+    <p>Los límites geográficos de los municipios se obtienen del sistema de Marco Geoestadístico del INEGI, que divide el territorio nacional en Áreas Geoestadísticas Estatales, Municipales y Básicas [4]. Los datos incluyen las coordenadas en latitud y longitud de los vértices del polígono que delimita cada municipio de interés, representados como un conjunto de pares $C = \{c_1, c_2, \ldots, c_n\}$ donde cada $c_i = (\phi_i, \lambda_i)$ es la latitud y longitud de un vértice.</p>
+
+    <!-- ─────────────────────────────────────── -->
+    <h2 class="section" id="metodologia">Metodología de procesamiento</h2>
+
+    <p>El procesamiento se divide en siete etapas secuenciales que transforman la imagen satelital cruda en un conjunto de estadísticas de radianza por municipio y fecha. La figura 1 ilustra el flujo completo.</p>
+
+    <figure>
+      <img src="assets/flow-sync.svg" alt="Diagrama del pipeline de procesamiento de imágenes satelitales VNP46A1">
+      <figcaption><strong>Figura 1.</strong> Flujo de procesamiento de la imagen satelital VNP46A1. Cada etapa transforma la representación del municipio desde coordenadas geográficas hasta un vector de valores de radianza sobre el que se calculan las estadísticas descriptivas.</figcaption>
+    </figure>
+
+    <h3 class="subsection" id="extraccion">Extracción de archivos HDF5</h3>
+
+    <p>El proceso inicia con la localización y descarga del archivo HDF5 correspondiente al cuadrante, año y día requeridos desde el servidor LAADS DAAC. Dado que la colección cuenta con alrededor de 4 700 archivos por cuadrante (uno por día desde 2012), se desarrolló un mecanismo de consulta al directorio del servidor que, dado un cuadrante, año y día del año, localiza el archivo correspondiente mediante su nomenclatura y lo descarga. Una vez extraída la información necesaria de la imagen, el archivo original se elimina para no acumular almacenamiento.</p>
+
+    <h3 class="subsection" id="coordenadas">Obtención de coordenadas geográficas de la imagen</h3>
+
+    <p>Cada archivo HDF5 contiene metadatos internos que describen la posición geográfica del cuadrante. Estos metadatos incluyen dos campos de interés:</p>
+
+    <ul>
+      <li><em>UpperLeftPointMtrs</em>: coordenadas del vértice superior izquierdo del cuadrante.</li>
+      <li><em>LowerRightMtrs</em>: coordenadas del vértice inferior derecho del cuadrante.</li>
+    </ul>
+
+    <p>Los valores de estos campos se expresan en unidades de $10^{-6}$ grados, por lo que se dividen entre $10^6$ para obtener la latitud y longitud correspondientes. La relación entre el índice de cuadrante $(h, v)$ y las coordenadas geográficas puede verificarse con las expresiones:</p>
+
+    <div class="math-block">
+      $$\text{longitud} = h \cdot 10 - 180 \tag{1}$$
+    </div>
+    <div class="math-block">
+      $$\text{latitud} = v \cdot (-10) - 90 \tag{2}$$
+    </div>
+
+    <p>Por ejemplo, para el cuadrante $h08v07$ de la Ciudad de México, estas fórmulas producen $-100°$ de longitud y $20°$ de latitud, coherentes con el valor de $UpperLeftPointMtrs = (-100{,}000{,}000,\ 20{,}000{,}000)$ encontrado en los metadatos.</p>
+
+    <h3 class="subsection" id="bordes">Mapeo de los bordes del municipio al espacio de píxeles</h3>
+
+    <p>La imagen satelital se representa como una matriz $I$ de dimensión $2400 \times 2400$. Para proyectar las coordenadas geográficas del municipio sobre esta matriz, se realiza una transformación lineal hacia el sistema de referencia de la imagen. Dados el vértice superior izquierdo del cuadrante $(\phi_{ul}, \lambda_{ul})$ y las resoluciones espaciales $r_x$ y $r_y$ en los ejes longitudinal y latitudinal respectivamente, las posiciones de píxel correspondientes a cada vértice $c_i = (\phi_i, \lambda_i)$ son:</p>
+
+    <div class="math-block">
+      $$x_i = \frac{\lambda_i - \lambda_{ul}}{r_x} \tag{3}$$
+    </div>
+    <div class="math-block">
+      $$y_i = \frac{\phi_i - \phi_{ul}}{r_y} \tag{4}$$
+    </div>
+
+    <p>donde $r_x$ y $r_y$ corresponden a la resolución espacial por píxel en cada dimensión. El eje $y$ se invierte porque en la matriz de imagen el índice de fila crece hacia abajo, mientras que la latitud crece hacia arriba.</p>
+
+    <h3 class="subsection" id="recorte">Recorte de la imagen y redimensión</h3>
+
+    <p>Una vez obtenidas las posiciones de píxel de todos los vértices del polígono municipal, se recorta una submatriz $I_{\text{municipio}}$ que contiene exclusivamente el área de interés, delimitada por los valores extremos de $x_i$ y $y_i$. Esto reduce el área de cómputo de $2400 \times 2400$ a una región acotada por el bounding box del municipio.</p>
+
+    <p>Para mitigar la posible pérdida de precisión en la definición de los contornos, se amplía la resolución de la imagen recortada mediante un producto de Kronecker. La operación replica cada píxel de la submatriz en un bloque de $f \times f$ píxeles, obteniendo una nueva matriz $I'$:</p>
+
+    <div class="math-block">
+      $$I' = \text{Kronecker}(I_{\text{municipio}},\ \mathbf{1}_{f \times f}) \tag{5}$$
+    </div>
+
+    <p>Esta operación aumenta la resolución espacial perceptual sin alterar el contenido radiométrico de la imagen original, lo que permite una delimitación más precisa de los bordes del polígono en el espacio discreto de píxeles.</p>
+
+    <h3 class="subsection" id="cierre">Cierre de bordes del polígono</h3>
+
+    <p>Los vértices del polígono municipal, al proyectarse al espacio de píxeles, pueden quedar separados por distancias mayores a un píxel, dejando huecos en el contorno discreto. Para garantizar la continuidad del borde, se verifica la distancia euclidiana $d_i$ entre cada par de puntos consecutivos $(x_i, y_i)$ y $(x_{i+1}, y_{i+1})$:</p>
+
+    <div class="math-block">
+      $$d_i = \sqrt{(x_{i+1} - x_i)^2 + (y_{i+1} - y_i)^2} \tag{6}$$
+    </div>
+
+    <p>Cuando $d_i > 1$, existe al menos un píxel de separación entre ambos puntos. En ese caso, se insertan puntos intermedios mediante interpolación lineal. Dado que la pendiente de la recta entre ambos puntos es:</p>
+
+    <div class="math-block">
+      $$m_i = \frac{y_{i+1} - y_i}{x_{i+1} - x_i} \tag{7}$$
+    </div>
+
+    <p>se generan 100 puntos equiespaciados $(x'_j, y'_j)$ entre $(x_i, y_i)$ y $(x_{i+1}, y_{i+1})$ siguiendo la ecuación:</p>
+
+    <div class="math-block">
+      $$y'_j = m_i \cdot (x'_j - x_i) + y_i \tag{8}$$
+    </div>
+
+    <p>El resultado es una lista densa de coordenadas enteras que forma un borde cerrado y continuo en el espacio de píxeles, que actúa como contorno del polígono municipal en la imagen ampliada.</p>
+
+    <h3 class="subsection" id="pixeles">Extracción de píxeles interiores del municipio</h3>
+
+    <p>Una vez definido el borde cerrado $b = (b_x, b_y)$, se identifican todos los píxeles que pertenecen al interior del polígono mediante una búsqueda en amplitud (BFS, <em>Breadth-First Search</em>) de cuatro vecinos. El punto de partida de la búsqueda debe estar garantizadamente dentro del polígono; para ello se calcula el centroide geométrico $C = (c_x, c_y)$ del polígono de borde mediante la fórmula de Shoelace:</p>
+
+    <div class="math-block">
+      $$c_x = \frac{1}{6A} \sum_{i=1}^{n} (b_{x_i} + b_{x_{i+1}})(b_{x_i} b_{y_{i+1}} - b_{x_{i+1}} b_{y_i}) \tag{9}$$
+    </div>
+    <div class="math-block">
+      $$c_y = \frac{1}{6A} \sum_{i=1}^{n} (b_{y_i} + b_{y_{i+1}})(b_{x_i} b_{y_{i+1}} - b_{x_{i+1}} b_{y_i}) \tag{10}$$
+    </div>
+
+    <p>donde $(b_x, b_y)$ son los $n$ puntos del borde y $A$ el área del polígono que forman. La BFS se inicia desde el centroide y se expande en las cuatro direcciones cardinales, deteniéndose al alcanzar cualquier coordenada de borde. Cada píxel interior alcanzado es registrado y su valor de radianza $I_{j,k}$ se agrega al vector de luminosidad del municipio $NTL_{i,j}$.</p>
+
+    <h3 class="subsection" id="huerfanos">Detección de píxeles huérfanos</h3>
+
+    <p>La BFS desde el centroide funciona correctamente cuando todos los píxeles del polígono están conectados entre sí. Sin embargo, existen casos —como el de Oaxaca de Juárez— en los que la geometría del municipio produce regiones internas que no están físicamente conectadas al componente que contiene el centroide. Estos píxeles no son alcanzados por la primera BFS y quedarían excluidos del cómputo.</p>
+
+    <p>Para detectar y recuperar estos <em>píxeles huérfanos</em>, se realiza una segunda búsqueda con lógica inversa: se inicia desde todos los píxeles ubicados en el borde de la imagen recortada (el marco exterior), excluyendo aquellos que forman parte del borde del polígono o que ya fueron identificados como interiores. Esta búsqueda externa recorre y marca todas las áreas alcanzables desde el exterior. Al finalizar, los píxeles que no fueron visitados por ninguna de las dos búsquedas —ni la interior desde el centroide ni la exterior desde el marco— corresponden necesariamente a regiones internas del polígono que no estaban conectadas al centroide. Estos píxeles huérfanos se añaden al vector $NTL_{i,j}$ junto con los píxeles principales.</p>
+
+    <figure>
+      <img src="../images/Flujo_pixeles_hueco.PNG" alt="Proceso de detección de píxeles huérfanos">
+      <figcaption><strong>Figura 2.</strong> Proceso de identificación de píxeles huérfanos. La BFS exterior (rojo) marca todas las regiones alcanzables desde el borde de la imagen. Las zonas no visitadas por ninguna búsqueda —huérfanas— se recuperan y añaden a la selección del municipio.</figcaption>
+    </figure>
+
+    <h3 class="subsection" id="estadisticas">Cómputo de métricas estadísticas</h3>
+
+    <p>Una vez completado el vector $NTL_{i,j}$ con todos los píxeles del municipio $i$ en la fecha $j$, se calculan las siguientes estadísticas descriptivas para resumir la distribución de luminosidad:</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Estadístico</th>
+          <th>Descripción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Cantidad de píxeles ($N$)</td><td>Número de píxeles que conforman el municipio</td></tr>
+        <tr><td>Suma de radianza ($\Sigma$)</td><td>Suma total de los valores de luminosidad del municipio</td></tr>
+        <tr><td>Media de radianza ($\mu$)</td><td>Promedio aritmético de los valores de luminosidad</td></tr>
+        <tr><td>Desviación estándar ($\sigma$)</td><td>Dispersión de los valores de luminosidad respecto a la media</td></tr>
+        <tr><td>Valor máximo</td><td>Máximo valor de luminosidad observado</td></tr>
+        <tr><td>Valor mínimo</td><td>Mínimo valor de luminosidad observado</td></tr>
+        <tr><td>Percentil 25 ($P_{25}$)</td><td>Primer cuartil de la distribución de luminosidad</td></tr>
+        <tr><td>Percentil 50 ($P_{50}$)</td><td>Mediana de la distribución de luminosidad</td></tr>
+        <tr><td>Percentil 75 ($P_{75}$)</td><td>Tercer cuartil de la distribución de luminosidad</td></tr>
+      </tbody>
+    </table>
+
+    <p>Estas métricas permiten caracterizar tanto la magnitud como la distribución espacial de la luminosidad dentro de cada municipio, capturando diferencias en la actividad económica tanto por intensidad como por extensión.</p>
+
+    <!-- ─────────────────────────────────────── -->
+    <h2 class="section" id="optimizacion">Optimizaciones al proceso</h2>
+
+    <p>La versión inicial del proceso ejecutaba todas las etapas de manera estrictamente secuencial: para cada combinación de municipio y fecha se descargaba el archivo, se transformaban las coordenadas, se identificaban los píxeles y se calculaban las estadísticas, antes de pasar a la siguiente fecha. Para 365 días de un único municipio, este esquema requería aproximadamente 60 minutos de ejecución. Se desarrollaron tres optimizaciones que redujeron este tiempo de manera significativa.</p>
+
+    <h3 class="subsection" id="precomputo">Precomputo y almacenamiento de coordenadas de píxeles</h3>
+
+    <p>La identificación de los píxeles que pertenecen a un municipio —etapas 3 a 7 de la metodología— produce siempre el mismo resultado, puesto que la delimitación geográfica de un municipio dentro de un cuadrante satelital es estática. Recalcular estas coordenadas en cada ejecución diaria resultaba redundante.</p>
+
+    <p>Para eliminar este costo, se desarrolló un proceso independiente que ejecuta el mapeo geográfico una única vez por municipio: obtiene el conjunto completo de coordenadas de píxeles correspondientes —incluyendo la detección de píxeles huérfanos— y almacena el resultado en un archivo de consulta estructurado. En ejecuciones posteriores, el proceso principal omite completamente las etapas de transformación geométrica y lee directamente las coordenadas desde dicho archivo, reduciendo cada iteración diaria a la descarga del archivo HDF5, la extracción de los valores de radianza en las coordenadas prealmacenadas y el cómputo de estadísticas.</p>
+
+    <h3 class="subsection" id="asincrono">Procesamiento asíncrono por lotes</h3>
+
+    <p>El procesamiento secuencial detiene la ejecución durante los tiempos de espera de red al descargar cada archivo HDF5. La versión asíncrona elimina esta inactividad al permitir que múltiples descargas y procesamientos ocurran de manera concurrente. Cada combinación de fecha y cuadrante se maneja como una unidad de trabajo autónoma que verifica si el archivo ya está disponible en almacenamiento temporal, realiza la descarga si es necesario, procesa la radianza y almacena los resultados parciales.</p>
+
+    <p>Para mantener la estabilidad del proceso y evitar saturar el servidor de la NASA, se establece un límite en el número de descargas simultáneas activas. Adicionalmente, el proceso soporta la división del conjunto de fechas en lotes (<em>chunks</em>) de tamaño configurable, lo que permite controlar el uso de memoria y guardar resultados intermedios de manera progresiva al finalizar cada lote.</p>
+
+    <h3 class="subsection" id="cuadrantes">Agrupación de municipios por cuadrante</h3>
+
+    <p>En la versión secuencial, la descarga de archivos se realizaba de forma independiente por cada combinación de municipio y fecha. Dado que múltiples municipios dentro del mismo cuadrante satelital comparten el mismo archivo HDF5, este esquema generaba descargas redundantes: si $M$ municipios pertenecen al mismo cuadrante, el archivo se descargaba $M$ veces por fecha.</p>
+
+    <p>La versión optimizada agrupa los municipios por cuadrante antes de iniciar el procesamiento. Para cada fecha, se descarga el archivo HDF5 de cada cuadrante una única vez; a continuación, se extraen los valores de radianza para todos los municipios de ese cuadrante consultando las coordenadas prealmacenadas; finalmente, el archivo se elimina del disco antes de proceder al siguiente cuadrante. Esta estrategia reduce el número total de descargas de $O(M \cdot D)$ a $O(C \cdot D)$, donde $M$ es el número de municipios, $D$ el número de fechas y $C \leq M$ el número de cuadrantes distintos involucrados.</p>
+
+    <figure>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 160" font-family="Georgia, serif" font-size="12" style="max-width:100%;border:none">
+        <defs>
+          <marker id="arr2" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L7,3 z" fill="#444"/>
+          </marker>
+        </defs>
+        <!-- Sin agrupacion -->
+        <text x="10" y="20" font-weight="bold" font-size="11" fill="#555">Sin agrupación por cuadrante</text>
+        <rect x="10" y="30" width="80" height="30" rx="4" fill="#fff8e1" stroke="#e6c000" stroke-width="1.5"/>
+        <text x="50" y="51" text-anchor="middle" font-size="10">Municipio A</text>
+        <rect x="10" y="70" width="80" height="30" rx="4" fill="#fff8e1" stroke="#e6c000" stroke-width="1.5"/>
+        <text x="50" y="91" text-anchor="middle" font-size="10">Municipio B</text>
+        <rect x="10" y="110" width="80" height="30" rx="4" fill="#fff8e1" stroke="#e6c000" stroke-width="1.5"/>
+        <text x="50" y="131" text-anchor="middle" font-size="10">Municipio C</text>
+        <!-- flechas sin agrupacion -->
+        <line x1="90" y1="45" x2="118" y2="45" stroke="#888" stroke-width="1.2" marker-end="url(#arr2)"/>
+        <line x1="90" y1="85" x2="118" y2="85" stroke="#888" stroke-width="1.2" marker-end="url(#arr2)"/>
+        <line x1="90" y1="125" x2="118" y2="125" stroke="#888" stroke-width="1.2" marker-end="url(#arr2)"/>
+        <!-- 3 descargas -->
+        <rect x="120" y="30" width="80" height="30" rx="4" fill="#fdecea" stroke="#c62828" stroke-width="1.5"/>
+        <text x="160" y="51" text-anchor="middle" font-size="10">Descarga h08v07</text>
+        <rect x="120" y="70" width="80" height="30" rx="4" fill="#fdecea" stroke="#c62828" stroke-width="1.5"/>
+        <text x="160" y="91" text-anchor="middle" font-size="10">Descarga h08v07</text>
+        <rect x="120" y="110" width="80" height="30" rx="4" fill="#fdecea" stroke="#c62828" stroke-width="1.5"/>
+        <text x="160" y="131" text-anchor="middle" font-size="10">Descarga h08v07</text>
+        <text x="210" y="90" font-size="11" fill="#c62828">× 3</text>
+
+        <!-- Con agrupacion -->
+        <text x="340" y="20" font-weight="bold" font-size="11" fill="#555">Con agrupación por cuadrante</text>
+        <rect x="340" y="30" width="80" height="30" rx="4" fill="#fff8e1" stroke="#e6c000" stroke-width="1.5"/>
+        <text x="380" y="51" text-anchor="middle" font-size="10">Municipio A</text>
+        <rect x="340" y="70" width="80" height="30" rx="4" fill="#fff8e1" stroke="#e6c000" stroke-width="1.5"/>
+        <text x="380" y="91" text-anchor="middle" font-size="10">Municipio B</text>
+        <rect x="340" y="110" width="80" height="30" rx="4" fill="#fff8e1" stroke="#e6c000" stroke-width="1.5"/>
+        <text x="380" y="131" text-anchor="middle" font-size="10">Municipio C</text>
+        <!-- flechas con agrupacion -->
+        <line x1="420" y1="45" x2="448" y2="75" stroke="#888" stroke-width="1.2" marker-end="url(#arr2)"/>
+        <line x1="420" y1="85" x2="448" y2="83" stroke="#888" stroke-width="1.2" marker-end="url(#arr2)"/>
+        <line x1="420" y1="125" x2="448" y2="95" stroke="#888" stroke-width="1.2" marker-end="url(#arr2)"/>
+        <!-- 1 descarga -->
+        <rect x="450" y="60" width="80" height="40" rx="4" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.5"/>
+        <text x="490" y="77" text-anchor="middle" font-size="10" fill="#2e7d32">Descarga h08v07</text>
+        <text x="490" y="92" text-anchor="middle" font-size="10" fill="#2e7d32">× 1 (compartida)</text>
+        <text x="540" y="90" font-size="11" fill="#2e7d32">× 1</text>
+      </svg>
+      <figcaption><strong>Figura 3.</strong> Comparación del esquema de descargas sin y con agrupación por cuadrante. Cuando varios municipios comparten el mismo tile HDF5, la agrupación elimina las descargas redundantes.</figcaption>
+    </figure>
+
+    <!-- ─────────────────────────────────────── -->
+    <h2 class="section" id="conjunto-de-datos">Conjunto de datos resultante</h2>
+
+    <p>El resultado del proceso es un conjunto de datos tabulares donde cada registro corresponde a una combinación de municipio y fecha, con las nueve métricas estadísticas de radianza descritas en la sección anterior. La estructura del conjunto de datos es la siguiente:</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Campo</th>
+          <th>Descripción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Cuadrante</td><td>Cuadrante de origen según la cuadrícula de Black Marble ($hXXvYY$)</td></tr>
+        <tr><td>Municipio</td><td>Nombre del municipio</td></tr>
+        <tr><td>Fecha</td><td>Fecha de toma de la imagen (yyyy-mm-dd)</td></tr>
+        <tr><td>Cantidad de píxeles</td><td>Número de píxeles que conforman el municipio en la imagen</td></tr>
+        <tr><td>Suma de radianza</td><td>Suma total de los valores de luminosidad del municipio</td></tr>
+        <tr><td>Media de radianza</td><td>Promedio de los valores de luminosidad</td></tr>
+        <tr><td>Desviación estándar</td><td>Dispersión de los valores respecto a la media</td></tr>
+        <tr><td>Máximo de radianza</td><td>Valor máximo de luminosidad observado</td></tr>
+        <tr><td>Mínimo de radianza</td><td>Valor mínimo de luminosidad observado</td></tr>
+        <tr><td>Percentil 25</td><td>Primer cuartil de la distribución de luminosidad</td></tr>
+        <tr><td>Percentil 50</td><td>Mediana de la distribución de luminosidad</td></tr>
+        <tr><td>Percentil 75</td><td>Tercer cuartil de la distribución de luminosidad</td></tr>
+      </tbody>
+    </table>
+
+    <p>Este conjunto de datos $NTL_{i,j}$ sirve como insumo para la estimación de la elasticidad entre luminosidad nocturna y PIB, siguiendo el marco estadístico propuesto por Henderson <em>et al.</em> [1], donde se relaciona el crecimiento en luces con el crecimiento en ingresos reales mediante:</p>
+
+    <div class="math-block">
+      $$\log(PIB_{j,t}) = \hat{\alpha} + \hat{\beta}\,\log(NTL_{j,t}) + \epsilon_{j,t} \tag{11}$$
+    </div>
+
+    <p>donde $\hat{\beta}$ representa la elasticidad entre la luminosidad nocturna productiva y el PIB municipal, y $\epsilon_{j,t}$ captura tanto el error de medición del satélite como la variabilidad no explicada por la NTL.</p>
+
+    <!-- ─────────────────────────────────────── -->
+    <h2 class="section" id="referencias">Referencias</h2>
+
+    <ol class="references">
+      <li id="ref-henderson">
+        Henderson, J. V., Storeygard, A., &amp; Weil, D. N. (2012).
+        Measuring Economic Growth from Outer Space.
+        <em>American Economic Review</em>, 102(2), 994–1028.
+      </li>
+      <li id="ref-roman">
+        Román, M. O., Wang, Z., Sun, Q., Kalb, V., Miller, S. D., Molthan, A., ... &amp; Masuoka, E. J. (2018).
+        NASA's Black Marble nighttime lights product suite.
+        <em>Remote Sensing of Environment</em>, 210, 113–143.
+      </li>
+      <li id="ref-laads">
+        NASA LAADS DAAC. (2024). <em>VNP46A1: VIIRS/NPP Daily Gridded Day Night Band 500m Linear Lat Lon Grid Night</em>.
+        NASA Level-1 and Atmosphere Archive &amp; Distribution System Distributed Active Archive Center.
+      </li>
+      <li id="ref-inegi-marco">
+        Instituto Nacional de Estadística y Geografía (INEGI). (2020).
+        <em>Marco Geoestadístico Nacional</em>. INEGI.
+      </li>
+      <li id="ref-gibson">
+        Gibson, J., &amp; Boe-Gibson, G. (2021).
+        Nighttime lights and county-level economic activity in the United States: 2001 to 2019.
+        <em>Remote Sensing</em>, 13(14), 2741.
+      </li>
+      <li id="ref-ehsan">
+        Ehsan, Z. A., Basher, S. A., Rashid, S., &amp; Uddin, M. R. (2023).
+        Estimating subnational GDP from nighttime lights: Evidence from Bangladesh.
+        <em>Journal of Development Economics</em>, 163, 103073.
+      </li>
+      <li id="ref-llamosas">
+        Llamosas-Rosas, I., Rangel Gonzalez, E., &amp; Sandoval Bustos, M. (2021).
+        Actividad económica en playas turísticas de México: un análisis con imágenes satelitales nocturnas.
+        <em>Estudios Económicos</em>, 36(2).
+      </li>
+    </ol>
+
+    <footer>
+      Jesús Manuel López Fabián &amp; Corral Avila Carolina —
+      Escuela Superior de Cómputo, Instituto Politécnico Nacional —
+      Ciudad de México, 2025.
+      Trabajo Terminal No. 2025-B037.
+    </footer>
+
+  </article>
+</div>
+
+</body>
+</html>
