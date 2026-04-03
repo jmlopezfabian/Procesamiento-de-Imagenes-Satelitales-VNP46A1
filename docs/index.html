@@ -210,7 +210,7 @@
     <p>Para detectar y recuperar estos <em>píxeles huérfanos</em>, se realiza una segunda búsqueda con lógica inversa: se inicia desde todos los píxeles ubicados en el borde de la imagen recortada (el marco exterior), excluyendo aquellos que forman parte del borde del polígono o que ya fueron identificados como interiores. Esta búsqueda externa recorre y marca todas las áreas alcanzables desde el exterior. Al finalizar, los píxeles que no fueron visitados por ninguna de las dos búsquedas —ni la interior desde el centroide ni la exterior desde el marco— corresponden necesariamente a regiones internas del polígono que no estaban conectadas al centroide. Estos píxeles huérfanos se añaden al vector $NTL_{i,j}$ junto con los píxeles principales.</p>
 
     <figure>
-      <img src="../images/Flujo_pixeles_hueco.PNG" alt="Proceso de detección de píxeles huérfanos">
+      <img src="assets/Flujo_pixeles_hueco.PNG" alt="Proceso de detección de píxeles huérfanos">
       <figcaption><strong>Figura 2.</strong> Proceso de identificación de píxeles huérfanos. La BFS exterior (rojo) marca todas las regiones alcanzables desde el borde de la imagen. Las zonas no visitadas por ninguna búsqueda —huérfanas— se recuperan y añaden a la selección del municipio.</figcaption>
     </figure>
 
