@@ -174,3 +174,7 @@ cython_debug/
 .pypirc
 
 temp/
+
+.claude/
+
+.cursor/
